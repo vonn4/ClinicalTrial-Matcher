@@ -1,3 +1,11 @@
+## Interactive development update
+
+- The replay textarea is now editable; three synthetic condition examples are selectable.
+- Original unchanged replay still uses exactly its pre-authored judgments; any modified fictional description uses real server-side deterministic parsing and condition-specific fictional search, with **no fabricated eligibility or skeptic review**.
+- `run_local.py`/`run_local.bat` launch both services and verify real input parsing/results instead of checking HTTP status alone.
+- Automated backend tests: **25 passed** locally. Frontend npm install/build unavailable in this sandbox because the npm registry cache is incomplete; GitHub CI should run the actual frontend build after the change is pushed.
+- No external ClinicalTrials.gov or Gemini API call was used for this offline validation.
+
 # ClinicalTrial Matcher — Implementation status
 
 Date: 2026-11-06. Stage: v0.1 implementation source (not a deployed/clinically validated product).
