@@ -76,3 +76,18 @@
 .followup-disclaimer{display:flex;gap:9px;align-items:flex-start;color:#596d7e;font-size:12px;line-height:1.5;margin-top:18px;background:#f4f8fb;padding:12px;border-radius:8px}
 .followup-disclaimer svg{flex-shrink:0}
 @media(max-width:720px){.trial-followups{padding:16px}.followup-heading{display:block}.followup-phase-tag{display:inline-block;margin-top:12px}.followup-question-heading{flex-wrap:wrap}.followup-impact{margin-left:37px}.followup-source-list{margin-left:0}.followup-summary{gap:10px 16px}}
+
+/* Increment 1.5-C: one shared answer, independently evaluated for every trial. */
+.followup-answer-form { display:grid;grid-template-columns:minmax(150px,1fr) minmax(170px,1.5fr);gap:9px 14px;padding:15px;margin:12px 0;background:#f5f8fb;border:1px solid #e1e8f0;border-radius:10px;align-items:center; }
+.followup-answer-form label {font-size:12px;font-weight:700;color:#344b63;}
+.followup-answer-form select,.followup-answer-form input {padding:10px 11px;border:1px solid #cbd8e5;border-radius:8px;background:white;font:inherit;color:#20354a;min-width:0;}
+.followup-answer-form button {grid-column:2;justify-self:start;font-size:12px;}
+.followup-changes {display:flex;gap:10px;align-items:start;padding:13px 15px;border:1px solid #c2e3db;background:#eff9f5;color:#246e5b;border-radius:9px;font-size:13px;margin:12px 0;}
+.followup-changes svg {flex-shrink:0;}
+.followup-completed {padding:14px 0;margin-top:17px;border-top:1px solid #e3e9f0;}
+.followup-completed h3 {font-size:14px;display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.followup-completed-item {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #eff2f5;}
+.followup-completed-item b {font-size:13px;}
+.followup-completed-item p {font-size:12px;color:#617488;margin-top:5px;}
+.followup-completed-item .followup-answer-form {grid-column:1 / -1;width:100%;}
+@media(max-width:750px){.followup-answer-form{grid-template-columns:1fr}.followup-answer-form button{grid-column:1}.followup-completed-item{grid-template-columns:1fr}.followup-completed-item .followup-answer-form{grid-column:1}}
