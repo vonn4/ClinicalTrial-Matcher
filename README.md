@@ -23,6 +23,29 @@ ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented 
 | Research metrics | Metric scripts implemented; **no experiments run** | Dashboard intentionally shows no fabricated numbers |
 | Public hosting | Config and instructions provided; **not deployed** | Cloudflare Pages + Render Free |
 
+## Run and verify the interactive app (recommended)
+
+From the repository root, **use one launcher instead of starting two terminals manually**:
+
+```powershell
+# Windows PowerShell or Command Prompt
+py -3 run_local.py
+# Alternatively, double-click run_local.bat
+```
+
+```bash
+# macOS/Linux
+python3 run_local.py
+```
+
+The launcher installs missing **free** Python/npm dependencies, starts FastAPI and Vite, checks both HTTP servers, submits a *modified fictional patient description*, confirms that the parsed age and condition changed, verifies that the matching trial IDs also change, and opens the React dashboard. Press **Ctrl+C** to stop both servers. It does **not** enable paid features.
+
+If you already have the services running, execute `python run_local.py --check` to verify the **actual input → backend → results workflow**. A stale backend on port 8000 will fail the check; stop the old processes and restart with the launcher. If your browser still shows the old locked demo, hard refresh (**Ctrl+Shift+R**).
+
+**Try it:** select **Interactive sandbox**, choose **Sickle cell** or **Cystic fibrosis**, or edit a fictional patient description yourself. Click **Explore synthetic trials**. The results and extracted profile will update. The original **Lung cancer** example includes three *pre-authored educational* assessments. **Changed profiles never inherit those judgments:** discovery works without an AI key, but eligibility/skeptic decisions remain *not assessed* until a real authorized model is configured. Select **Live registry** for real public ClinicalTrials.gov search (internet required, synthetic patient input only).
+
+**This is not a free-form medical chatbot.** To generate new eligibility and skeptic assessments, explicitly opt into the free-tier Gemini API using the local `.env` setup below; never use real patient information, and do not enable paid billing. Public access remains model-disabled by default.
+
 ## Start locally — no API keys or payment
 
 **Backend** (Python 3.11+):
@@ -46,7 +69,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The app launches with a fully bundled synthetic replay. The replay is available even if the backend is unavailable.
+Open `http://localhost:5173`. The original replay remains bundled when the backend is unavailable; edited fictional profiles require the running backend.
 
 **Backend tests**:
 
