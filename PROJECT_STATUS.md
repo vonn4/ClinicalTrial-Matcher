@@ -1,3 +1,21 @@
+# Current development status — MVP 1.5-A
+
+**Branch:** `feat/mvp-1.5-guided-intake` (review against `feat/initial-mvp-v0.1`).
+
+- [x] Guided, synthetic-only patient intake questionnaire with condition-specific questions
+- [x] Explicit known / unknown / pending / not-tested / not-applicable / declined states
+- [x] Separate prior and current treatment fields; biomarker results are distinct from test mentions
+- [x] Canonical structured profile with provenance, unknowns, user review and editing
+- [x] Existing quick description mode and fixed synthetic evidence demonstration preserved
+- [x] Guided profile discovery uses canonical backend answers; no inherited canned eligibility verdicts
+- [x] Backend regression and intake tests; launcher guided-workflow health check
+- [ ] Trial-specific question extraction and cross-trial deduplication (MVP 1.5-B/C)
+- [ ] Dependent criterion-level reassessment on edits (MVP 1.5-C)
+- [ ] Full browser automation and question-burden evaluation (MVP 1.5-D)
+- [ ] Real external trial/LLM clinical validation and formal benchmark experiments
+
+**Safety:** Research navigation with synthetic data only. Trial eligibility conclusions are not provided for new guided profiles. Unsupported/unanswered facts are never treated as an eligibility pass.
+
 ## Interactive development update
 
 - The replay textarea is now editable; three synthetic condition examples are selectable.

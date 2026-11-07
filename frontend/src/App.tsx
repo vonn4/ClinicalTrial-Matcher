@@ -1,9 +1,10 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,ArrowRight,BarChart3,Bookmark,BookOpen,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,Sparkles,X} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
-import type {Analysis,Mode,Page,PatientProfile,Status,Summary,Trial,TrialAssessment} from './types';
+import type {Analysis,IntakeSubmission,Mode,Page,PatientProfile,Status,Summary,Trial,TrialAssessment} from './types';
 import {offlineAnalysis,sampleDescription,syntheticPatient} from './data/fixture';
-import {analyze,parseProfile,searchTrials} from './lib/api';
+import {analyze,parseProfile,searchTrials,buildIntakeProfile} from './lib/api';
+import GuidedIntake from './components/GuidedIntake';
 
 const STATUS_LABEL:Record<Summary,string>={potential_match:'Potential match',needs_information:'Needs more information',identified_conflict:'Eligibility conflict',clinical_review:'Clinical review required'};
 const SANDBOX_EXAMPLES=[
@@ -97,11 +98,12 @@ function SavedView({trials,assessments,saved,setSaved,onSelect}:{trials:Trial[];
 
 export default function App(){
   const [page,setPage]=useState<Page>('discover');
+  const [intakeMode,setIntakeMode]=useState<'guided'|'quick'>('guided');
   const [mode,setMode]=useState<Mode>('replay');
   const [text,setText]=useState(sampleDescription);
   const [profile,setProfile]=useState<PatientProfile>(syntheticPatient());
-  const [analysis,setAnalysis]=useState<Analysis>(offlineAnalysis);
-  const [selected,setSelected]=useState('DEMO-001');
+  const [analysis,setAnalysis]=useState<Analysis>({...offlineAnalysis,trials:[],assessments:[]});
+  const [selected,setSelected]=useState('');
   const [saved,setSaved]=useState<string[]>(getStorage);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -125,7 +127,32 @@ export default function App(){
   const conflict=analysis.assessments.filter(a=>a.summary==='identified_conflict').length;
   const counts=[{label:'Retrieved',value:analysis.trials.length},{label:'Assessed',value:analysis.assessments.length},{label:'Potential',value:potentially}];
   function toggleSaved(id:string){setSaved(prev=>prev.includes(id)?prev.filter(i=>i!==id):[...prev,id]);}
-  function changeMode(next:Mode){setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());setAnalysis(next==='replay'?offlineAnalysis:{...offlineAnalysis,mode:'live',trials:[],assessments:[]});setSelected(next==='replay'?'DEMO-001':'');setLiveSearched(false);}
+  function changeMode(next:Mode){setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());
+    setAnalysis(next==='replay'&&intakeMode==='quick'?offlineAnalysis:{...offlineAnalysis,mode:next,trials:[],assessments:[]});
+    setSelected(next==='replay'&&intakeMode==='quick'?'DEMO-001':'');setLiveSearched(false);}
+  function changeIntakeMode(next:'guided'|'quick'){
+    setIntakeMode(next);setError('');setLiveSearched(false);
+    if(next==='quick'){setText(sampleDescription);setProfile(syntheticPatient());}
+    setAnalysis(next==='quick'&&mode==='replay'?offlineAnalysis:{...offlineAnalysis,mode,trials:[],assessments:[]});
+    setSelected(next==='quick'&&mode==='replay'?'DEMO-001':'');
+  }
+  async function runGuidedSearch(submission:IntakeSubmission){
+    setBusy(true);setError('');
+    try{
+      const built=await buildIntakeProfile(submission);
+      setProfile(built);
+      if(mode==='replay'){
+        const next=await analyze(built,'replay');
+        setAnalysis(next);setSelected(next.trials[0]?.nct_id||'');setConnection('Guided intake · synthetic trials');
+      }else{
+        const searched=await searchTrials(built,'live');
+        setAnalysis({mode:'live',profile:built,trials:searched.trials,assessments:[],timings_ms:{},
+          disclaimer:'Live trial discovery; full AI eligibility assessment not performed.'});
+        setSelected(searched.trials[0]?.nct_id||'');setLiveSearched(true);setConnection('Guided intake · live registry');
+      }
+    }catch(e){setError(e instanceof Error?e.message:'Guided intake failed');}
+    finally{setBusy(false);}
+  }
   async function runSearch(){
     setBusy(true);setError('');
     try{
@@ -147,8 +174,15 @@ export default function App(){
   return <div className="app-shell"><Sidebar page={page} setPage={setPage} savedCount={saved.length}/><main className="main-content"><DashboardHeader mode={mode} connection={connection}/>
     <div className="safety-banner"><div><ShieldCheck size={17}/><strong>Research demonstration</strong><span>•</span> Synthetic patient data only. No medical advice or eligibility determination.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
     {page==='discover'&&<><section className="intro-heading"><div><div className="section-eyebrow"><Sparkles size={15}/> AI-ASSISTED DISCOVERY</div><h2>Start with a patient story.</h2><p>We'll find relevant studies and show exactly what is known, uncertain, or conflicting.</p></div><div className="mode-switch"><button className={mode==='replay'?'chosen':''} onClick={()=>changeMode('replay')}>Interactive sandbox</button><button className={mode==='live'?'chosen':''} onClick={()=>changeMode('live')}>Live registry</button></div></section>
-      <section className="patient-input panel"><div className="input-head"><div><label htmlFor="patient">SYNTHETIC PATIENT DESCRIPTION</label><p>{mode==='replay'?'Edit a fictional profile or select a scenario below. The original example has pre-authored assessments; custom profiles show trial discovery only.':'Public registry search. Use synthetic details only; AI assessment requires opt-in server configuration.'}</p></div><span className="synthetic-tag">SYNTHETIC ONLY</span></div><textarea id="patient" value={text} onChange={e=>setText(e.target.value)} rows={3} maxLength={3000}/>{mode==='replay'&&<div className="scenario-examples"><span>Try a fictional example:</span>{SANDBOX_EXAMPLES.map(example=><button key={example.name} type="button" disabled={busy} className={text===example.description?'active':''} onClick={()=>{setText(example.description);setError('');}}>{example.name}</button>)}</div>}{mode==='live'&&<div className="live-token-control"><label htmlFor="team-token">TEAM AI ACCESS TOKEN (OPTIONAL FOR PUBLIC TRIAL SEARCH)</label><input id="team-token" type="password" autoComplete="off" placeholder="Required for authorized live AI profiling and eligibility analysis" value={liveToken} onChange={e=>setLiveToken(e.target.value)}/><span>Kept only in this browser session's memory. Never place API keys here.</span></div>}
-      <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':mode==='replay'?'Explore synthetic trials':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>
+      <div className="intake-method-switch" role="group" aria-label="Profile intake method">
+        <div><strong>How would you like to build the profile?</strong><p>Guided questions help capture important facts without requiring medical-writing expertise.</p></div>
+        <div className="intake-method-buttons">
+          <button className={intakeMode==='guided'?'active':''} onClick={()=>changeIntakeMode('guided')}>Guided intake <span>New</span></button>
+          <button className={intakeMode==='quick'?'active':''} onClick={()=>changeIntakeMode('quick')}>Quick description</button>
+        </div>
+      </div>
+      {intakeMode==='guided'?<GuidedIntake mode={mode} busy={busy} onSearch={runGuidedSearch}/>:<section className="patient-input panel"><div className="input-head"><div><label htmlFor="patient">SYNTHETIC PATIENT DESCRIPTION</label><p>{mode==='replay'?'Edit a fictional profile or select a scenario below. The original example has pre-authored assessments; custom profiles show trial discovery only.':'Public registry search. Use synthetic details only; AI assessment requires opt-in server configuration.'}</p></div><span className="synthetic-tag">SYNTHETIC ONLY</span></div><textarea id="patient" value={text} onChange={e=>setText(e.target.value)} rows={3} maxLength={3000}/>{mode==='replay'&&<div className="scenario-examples"><span>Try a fictional example:</span>{SANDBOX_EXAMPLES.map(example=><button key={example.name} type="button" disabled={busy} className={text===example.description?'active':''} onClick={()=>{setText(example.description);setError('');}}>{example.name}</button>)}</div>}{mode==='live'&&<div className="live-token-control"><label htmlFor="team-token">TEAM AI ACCESS TOKEN (OPTIONAL FOR PUBLIC TRIAL SEARCH)</label><input id="team-token" type="password" autoComplete="off" placeholder="Required for authorized live AI profiling and eligibility analysis" value={liveToken} onChange={e=>setLiveToken(e.target.value)}/><span>Kept only in this browser session's memory. Never place API keys here.</span></div>}
+      <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':mode==='replay'?'Explore synthetic trials':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>}
       {error&&<div className="error-alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={15}/></button></div>}
       {mode==='live'&&liveSearched&&<div className="live-action"><Info size={17}/><div><strong>Live trial discovery completed.</strong><p>Matching studies are not eligibility assessments. AI analysis is optional and disabled on publicly deployed backends unless explicitly enabled.</p></div><button className="secondary-button" disabled={busy} onClick={runLiveAnalysis}>Run eligibility + skeptic</button></div>}
       <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Full assessments" value={analysis.assessments.length} sub="Criterion-level evaluations"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>

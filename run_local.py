@@ -59,11 +59,27 @@ def verify_workflow(backend_url: str, frontend_url: str) -> None:
     if result.get('assessments'):
         raise RuntimeError('Unsafe result: custom synthetic patient incorrectly received pre-authored eligibility judgments')
 
+    # MVP 1.5-A guided patient profile: verify the new structured path, not just replay.
+    questions = request_json(f'{backend_url}/api/v1/intake/questions?condition=sickle%20cell%20disease')
+    if not any(q['id'] == 'sickle_genotype' for q in questions.get('questions', [])):
+        raise RuntimeError('Condition-specific intake questions were not returned')
+    guided = request_json(f'{backend_url}/api/v1/intake/profile', {
+        'answers': {'condition': {'state': 'answered', 'value': 'sickle cell disease'},
+                    'age': {'state': 'answered', 'value': '29'},
+                    'previous_treatments': {'state': 'unknown', 'value': None}},
+        'narrative': 'Synthetic guided intake for a fictional patient.', 'synthetic': True})
+    guided_result = request_json(f'{backend_url}/api/v1/analysis/run', {
+        'profile': guided, 'mode': 'replay', 'limit': 3})
+    if ([t['nct_id'] for t in guided_result['trials']] != ['DEMO-004'] or
+            guided_result['assessments'] or
+            guided_result['profile']['intake_answers']['previous_treatments']['state'] != 'unknown'):
+        raise RuntimeError('Guided profile did not retain unknown states or route to the correct fictional studies')
+
     with urlopen(frontend_url, timeout=5) as response:
         page = response.read(30000).decode('utf8', errors='replace')
         if response.status != 200 or '<div id="root"></div>' not in page:
             raise RuntimeError('Vite did not serve the expected React application')
-    print('PASS: React page, backend health, patient-input parsing, updated trial retrieval, and replay safety')
+    print('PASS: React page, backend health, editable intake, disease questions, profile preservation, trial retrieval, replay safety')
 
 
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
@@ -151,7 +167,14 @@ def main() -> int:
         procs.append(subprocess.Popen([npm, 'run', 'dev', '--', '--host', '127.0.0.1', '--port', str(args.frontend_port), '--strictPort'], cwd=FRONTEND, env=env))
         wait_until(f, 'React/Vite', procs)
         verify_workflow(b, f)
-        print(f'\nREADY: {f}\nInteractive sandbox: edit the fictional patient text or select a scenario, then click Explore synthetic trials.\nLive registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\nLive AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\nStop both services with Ctrl+C.\n', flush=True)
+        print((
+            f'\nREADY: {f}\n'
+            'Guided intake: select Guided intake, review your profile, then discover fictional trials.\n'
+            'Quick description: edit fictional patient text or choose a scenario.\n'
+            'Live registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\n'
+            'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
+            'Stop both services with Ctrl+C.\n'
+        ), flush=True)
         if not args.no_browser:
             webbrowser.open(f)
         while all(p.poll() is None for p in procs):
