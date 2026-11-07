@@ -70,3 +70,25 @@ Legacy endpoints remain backward-compatible.
 For every increment: run `python -m pytest -q backend/tests`, check frontend `npm run build`,
 run `python run_local.py --check` after starting the launcher, and verify GitHub Actions.
 Do not merge until CI is green and the preview is checked manually in a browser.
+
+## Increment 1.5-B — source-grounded shared question planning
+
+- `backend/app/followups.py` contains a conservative allowlist of recognized
+  trial criterion phrasings. A criterion maps to a canonical fact key only
+  when the source text is supported and verified verbatim against the study.
+- `POST /api/v1/intake/followups` accepts a profile, mode, and 1–8 trial IDs.
+  Sandbox IDs resolve against server-owned fictional fixtures; NCT IDs are
+  re-fetched from the official public registry. The browser cannot supply
+  arbitrary criterion strings or claim clinical interpretations.
+- One question groups *exact* criterion references across distinct trials;
+  matching age thresholds remain distinct in their own original source text.
+- `answer_state` can distinguish missing, unknown, pending, not tested,
+  declined, and not applicable; completed explicit facts are not repeatedly
+  requested. A generic positive EGFR result still prompts for activating
+  variant specificity.
+- Unmapped requirements are reported, not treated as negative or satisfied.
+- UI is a **read-only question-planning preview** until 1.5-C. No eligibility
+  verdict, answer propagation, or medical screening is implied.
+- Acceptance scenario: guided NSCLC with age unknown → one age question
+  linking three studies; EGFR pending → a distinct pending-status question;
+  opening Why are we asking? shows trial-specific verbatim criteria.
