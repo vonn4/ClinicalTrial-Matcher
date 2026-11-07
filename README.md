@@ -6,7 +6,22 @@ ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented 
 
 > **Important:** Research/navigation prototype only. **Use synthetic patient descriptions exclusively.** It is not medical advice, clinical validation, or confirmation of clinical trial eligibility. Study teams make final screening decisions. The included replay examples and trial identifiers are **fictional**.
 
-## Current implementation status (MVP 1.5-A guided intake increment)
+## MVP 1.5-C — shared questions and cross-trial reassessment (draft)
+
+Guided intake now flows into **Candidate trials → Shared follow-up questions →
+One answer → Independent criterion refresh for every linked trial**. An age
+answer can resolve three different trial age rules simultaneously; editing that
+answer rechecks those requirements. Pending tests and missing facts never count
+as negative results. Original study text remains visible.
+
+**Critical:** New criterion checks are deterministic and based on fictional,
+self-reported facts. This is not clinical eligibility, an independently
+validated AI review, or a completed skeptic run. Unsupported criteria remain
+for clinical review, and no paid API is required. See
+`docs/MVP_1_5_IMPLEMENTATION.md` for the API contract and test walkthrough.
+
+## Current implementation status (MVP 1.5-C staged)
+
 
 | Feature | Status | Notes |
 | --- | --- | --- |
@@ -23,7 +38,7 @@ ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented 
 | Research metrics | Metric scripts implemented; **no experiments run** | Dashboard intentionally shows no fabricated numbers |
 | Public hosting | Config and instructions provided; **not deployed** | Cloudflare Pages + Render Free |
 
-## Increment 1.5-B — shared trial-specific follow-up question planning
+## Increment 1.5-B — shared trial-specific follow-up questions (retained)
 
 After completing **Guided intake** and discovering fictional trials, the dashboard
 now shows **Questions that could clarify your trial matches**. Each question
@@ -64,7 +79,7 @@ py -3 run_local.py
 python3 run_local.py
 ```
 
-The launcher installs missing **free** Python/npm dependencies, starts FastAPI and Vite, checks both HTTP servers, submits a *modified fictional patient description*, confirms that the parsed age and condition changed, verifies that the matching trial IDs also change, and opens the React dashboard. Press **Ctrl+C** to stop both servers. It does **not** enable paid features.
+The launcher installs missing **free** Python/npm dependencies, starts FastAPI and Vite, checks both servers, verifies intake and fictional retrieval, checks cross-trial question deduplication, submits one age answer that must update three trial criteria, and opens the React dashboard. Press **Ctrl+C** to stop both servers. It does **not** enable paid features.
 
 If you already have the services running, execute `python run_local.py --check` to verify the **actual input → backend → results workflow**. A stale backend on port 8000 will fail the check; stop the old processes and restart with the launcher. If your browser still shows the old locked demo, hard refresh (**Ctrl+Shift+R**).
 
@@ -164,6 +179,7 @@ The precomputed synthetic replay is a **UX/engineering demonstration, not an exp
 - `GET /api/v1/trials/{nct_id}`
 - `POST /api/v1/trials/assess` (live protected)
 - `POST /api/v1/analysis/run` (live protected)
+- `POST /api/v1/intake/reassess` (source-restricted shared answers and partial criterion refresh)
 - `GET /api/v1/monitor/snapshot` (inactive until configured)
 - `GET /api/v1/evaluation/summary` (reports not measured until experiments run)
 
