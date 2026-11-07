@@ -146,6 +146,49 @@ class AnalysisResponse(BaseModel):
     timings_ms: dict[str,float] = Field(default_factory=dict)
     disclaimer: str = 'Synthetic research demonstration, not clinical advice or confirmed eligibility.'
 
+class FollowupCriterionLink(BaseModel):
+    nct_id: str
+    criterion_id: str
+    kind: Literal['inclusion','exclusion']
+    source_text: str
+
+class FollowupQuestion(BaseModel):
+    fact_key: str
+    question: str
+    explanation: str
+    input_type: Literal['text','number','select']
+    options: list[str] = Field(default_factory=list)
+    answer_state: Literal['missing','unknown','pending','not_tested','not_applicable','declined']
+    priority: int
+    trial_count: int
+    linked_criteria: list[FollowupCriterionLink]
+
+class UnmappedCriterion(BaseModel):
+    nct_id: str
+    criterion_id: str
+    reason: str
+
+class FollowupRequest(BaseModel):
+    profile: PatientProfile
+    mode: Mode = Mode.replay
+    trial_ids: list[str] = Field(min_length=1, max_length=8)
+
+    @field_validator('trial_ids')
+    @classmethod
+    def validate_trial_ids(cls, values: list[str]) -> list[str]:
+        if len(set(values)) != len(values):
+            raise ValueError('Duplicate study identifiers')
+        if any(not re.fullmatch(r'(?:DEMO-\d{3}|NCT\d{8})',v) for v in values):
+            raise ValueError('Invalid study identifier')
+        return values
+
+class FollowupPlan(BaseModel):
+    questions: list[FollowupQuestion]
+    reviewed_trial_ids: list[str]
+    mapped_criterion_count: int
+    unmapped_criteria: list[UnmappedCriterion]
+    notice: str
+
 class TrialChange(BaseModel):
     nct_id: str
     changed_fields: list[str]
