@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Literal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import re
 
 class Mode(str, Enum):
@@ -13,7 +13,38 @@ class Fact(BaseModel):
     field: str
     value: str
     evidence: str
-    source: Literal['explicit', 'user_corrected'] = 'explicit'
+    source: Literal['explicit', 'user_corrected', 'guided_answer'] = 'explicit'
+
+class IntakeAnswer(BaseModel):
+    """An explicit answer state. Missing is not equivalent to negative or not tested."""
+    state: Literal['answered', 'unknown', 'pending', 'not_tested', 'not_applicable', 'declined']
+    value: str | None = None
+
+    @model_validator(mode='after')
+    def valid_state(self):
+        if self.state == 'answered':
+            if self.value is None or not self.value.strip():
+                raise ValueError('Answered intake facts require a nonempty value')
+            self.value = self.value.strip()
+        elif self.value is not None:
+            raise ValueError('Non-answered states must not contain a value')
+        return self
+
+class IntakeSubmission(BaseModel):
+    answers: dict[str, IntakeAnswer] = Field(default_factory=dict, max_length=40)
+    narrative: str = Field(default='', max_length=1500)
+    synthetic: Literal[True] = True
+
+class IntakeQuestion(BaseModel):
+    id: str
+    label: str
+    help: str
+    section: Literal['basics', 'history', 'access']
+    input_type: Literal['text', 'number', 'select']
+    options: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    required_for_search: bool = False
+    placeholder: str = ''
 
 class PatientProfile(BaseModel):
     description: str = Field(min_length=10, max_length=3000)
@@ -26,6 +57,8 @@ class PatientProfile(BaseModel):
     facts: list[Fact] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     synthetic: Literal[True] = True
+    intake_answers: dict[str, IntakeAnswer] = Field(default_factory=dict)
+    intake_story: str = Field(default='', max_length=1500)
 
 class ProfileRequest(BaseModel):
     description: str = Field(min_length=10, max_length=3000)
