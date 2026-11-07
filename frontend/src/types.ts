@@ -28,3 +28,18 @@ export interface Assessment { criterion_id: string; status: Status; exclusion_tr
 export interface Skeptic {criterion_id:string; independent_status:Status; exclusion_triggered:boolean|null; explanation:string; disagreement:boolean}
 export interface TrialAssessment {nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'}
 export interface Analysis {mode:Mode;profile:PatientProfile;trials:Trial[];assessments:TrialAssessment[];timings_ms:Record<string,number>;disclaimer:string}
+
+export interface FollowupCriterionLink {
+  nct_id: string; criterion_id: string; kind: 'inclusion'|'exclusion'; source_text: string;
+}
+export interface FollowupQuestion {
+  fact_key: string; question: string; explanation: string;
+  input_type: 'text'|'number'|'select'; options: string[];
+  answer_state: 'missing'|'unknown'|'pending'|'not_tested'|'not_applicable'|'declined';
+  priority: number; trial_count: number; linked_criteria: FollowupCriterionLink[];
+}
+export interface UnmappedCriterion {nct_id:string;criterion_id:string;reason:string}
+export interface FollowupPlan {
+  questions: FollowupQuestion[]; reviewed_trial_ids:string[];
+  mapped_criterion_count:number; unmapped_criteria:UnmappedCriterion[]; notice:string;
+}
