@@ -59,6 +59,7 @@ class PatientProfile(BaseModel):
     synthetic: Literal[True] = True
     intake_answers: dict[str, IntakeAnswer] = Field(default_factory=dict)
     intake_story: str = Field(default='', max_length=1500)
+    followup_answers: dict[str, IntakeAnswer] = Field(default_factory=dict, max_length=24)
 
 class ProfileRequest(BaseModel):
     description: str = Field(min_length=10, max_length=3000)
@@ -114,7 +115,7 @@ class TrialAssessment(BaseModel):
     skeptic: list[SkepticFinding] = Field(default_factory=list)
     summary: Literal['potential_match','needs_information','identified_conflict','clinical_review']
     unresolved: list[str] = Field(default_factory=list)
-    provenance: Literal['live_llm','synthetic_replay']
+    provenance: Literal['live_llm','synthetic_replay','deterministic_followup']
 
 class SearchRequest(BaseModel):
     profile: PatientProfile
@@ -158,7 +159,7 @@ class FollowupQuestion(BaseModel):
     explanation: str
     input_type: Literal['text','number','select']
     options: list[str] = Field(default_factory=list)
-    answer_state: Literal['missing','unknown','pending','not_tested','not_applicable','declined']
+    answer_state: Literal['missing','answered','unknown','pending','not_tested','not_applicable','declined']
     priority: int
     trial_count: int
     linked_criteria: list[FollowupCriterionLink]
@@ -187,6 +188,24 @@ class FollowupPlan(BaseModel):
     reviewed_trial_ids: list[str]
     mapped_criterion_count: int
     unmapped_criteria: list[UnmappedCriterion]
+    completed_questions: list[FollowupQuestion] = Field(default_factory=list)
+    notice: str
+
+class ReassessmentRequest(FollowupRequest):
+    """Client submits self-reported edits; all trial requirements are re-fetched by ID."""
+    updates: dict[str, IntakeAnswer] = Field(default_factory=dict, max_length=12)
+
+class CriterionDelta(BaseModel):
+    nct_id: str
+    criterion_id: str
+    before: Literal['met','not_met','unknown','clinical_review']
+    after: Literal['met','not_met','unknown','clinical_review']
+
+class ReassessmentResponse(BaseModel):
+    profile: PatientProfile
+    assessments: list[TrialAssessment]
+    followups: FollowupPlan
+    changed_criteria: list[CriterionDelta]
     notice: str
 
 class TrialChange(BaseModel):
