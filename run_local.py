@@ -75,6 +75,19 @@ def verify_workflow(backend_url: str, frontend_url: str) -> None:
             guided_result['profile']['intake_answers']['previous_treatments']['state'] != 'unknown'):
         raise RuntimeError('Guided profile did not retain unknown states or route to the correct fictional studies')
 
+    # MVP 1.5-B: a shared unknown age should yield one question linked to three
+    # distinct server-owned fictional studies, with no eligibility claim.
+    guided = request_json(f'{backend_url}/api/v1/intake/profile', {
+        'answers': {'condition': {'state': 'answered', 'value': 'non-small cell lung cancer'},
+                    'age': {'state': 'unknown', 'value': None}},
+        'synthetic': True})
+    plan = request_json(f'{backend_url}/api/v1/intake/followups', {
+        'profile': guided, 'mode': 'replay',
+        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003']})
+    age_questions = [q for q in plan['questions'] if q['fact_key'] == 'age']
+    if len(age_questions) != 1 or age_questions[0]['trial_count'] != 3:
+        raise RuntimeError('Cross-trial question deduplication failed')
+
     with urlopen(frontend_url, timeout=5) as response:
         page = response.read(30000).decode('utf8', errors='replace')
         if response.status != 200 or '<div id="root"></div>' not in page:
