@@ -6,7 +6,7 @@ ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented 
 
 > **Important:** Research/navigation prototype only. **Use synthetic patient descriptions exclusively.** It is not medical advice, clinical validation, or confirmation of clinical trial eligibility. Study teams make final screening decisions. The included replay examples and trial identifiers are **fictional**.
 
-## Current implementation status (v0.1)
+## Current implementation status (MVP 1.5-A guided intake increment)
 
 | Feature | Status | Notes |
 | --- | --- | --- |
@@ -45,6 +45,21 @@ If you already have the services running, execute `python run_local.py --check` 
 **Try it:** select **Interactive sandbox**, choose **Sickle cell** or **Cystic fibrosis**, or edit a fictional patient description yourself. Click **Explore synthetic trials**. The results and extracted profile will update. The original **Lung cancer** example includes three *pre-authored educational* assessments. **Changed profiles never inherit those judgments:** discovery works without an AI key, but eligibility/skeptic decisions remain *not assessed* until a real authorized model is configured. Select **Live registry** for real public ClinicalTrials.gov search (internet required, synthetic patient input only).
 
 **This is not a free-form medical chatbot.** To generate new eligibility and skeptic assessments, explicitly opt into the free-tier Gemini API using the local `.env` setup below; never use real patient information, and do not enable paid billing. Public access remains model-disabled by default.
+
+## MVP 1.5-A — Guided synthetic intake (new feature branch)
+
+This increment adds a **guided baseline questionnaire** alongside the original **Quick description** demo:
+
+1. Go to **Discover trials → Guided intake**. Enter a fictional diagnosis, or select NSCLC / sickle cell / cystic fibrosis.
+2. The questionnaire branches by condition (for example EGFR/ALK for NSCLC, genotype for sickle cell, CFTR for cystic fibrosis).
+3. Mark any unknown, pending, not-tested, inapplicable, or declined answer explicitly; do not guess a medical fact.
+4. Complete treatment and travel preferences; optionally provide a fictional free-text story.
+5. **Review profile** to inspect the facts before clicking **Discover fictional trials** or **Search real trial registry**.
+6. In sandbox mode, fictional candidate trials are returned. **Guided cases do not receive fabricated eligibility assessments**. The original Quick description lung-cancer fixture retains its pre-authored illustrative findings.
+
+**Architecture and current scope:** `GET /api/v1/intake/questions?condition=...` serves an explainable question bank; `POST /api/v1/intake/profile` builds canonical, versioned-by-schema patient facts from explicit answers; these are carried through existing discovery APIs. No database, new service, model key, or payment is required. The optional story is retained as unverified context and does **not** overwrite structured facts. When a profile is submitted later, the backend reconstructs its canonical attributes from the original answers instead of trusting a client-supplied age/diagnosis.
+
+**Next planned increments (not yet implemented):** **1.5-B** source-grounded trial-to-fact mappings and missing-question queue; **1.5-C** cross-trial question deduplication and dependent-criterion reassessment; **1.5-D** end-to-end UX, comparison improvements, and empirically tested question efficiency. See `docs/MVP_1_5_IMPLEMENTATION.md`.
 
 ## Start locally — no API keys or payment
 
