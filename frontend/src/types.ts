@@ -2,11 +2,20 @@ export type Mode = 'replay' | 'live';
 export type Page = 'discover' | 'saved' | 'research';
 export type Status = 'met' | 'not_met' | 'unknown' | 'clinical_review';
 export type Summary = 'potential_match' | 'needs_information' | 'identified_conflict' | 'clinical_review';
-export interface Fact { field: string; value: string; evidence: string; source: 'explicit'|'user_corrected' }
+export interface Fact { field: string; value: string; evidence: string; source: 'explicit'|'user_corrected'|'guided_answer' }
+export type IntakeAnswerState = 'answered'|'unknown'|'pending'|'not_tested'|'not_applicable'|'declined';
+export interface IntakeAnswer { state: IntakeAnswerState; value: string|null }
+export interface IntakeSubmission { answers: Record<string,IntakeAnswer>; narrative: string; synthetic: true }
+export interface IntakeQuestion {
+  id:string; label:string; help:string; section:'basics'|'history'|'access';
+  input_type:'text'|'number'|'select'; options:string[]; conditions:string[];
+  required_for_search:boolean; placeholder:string;
+}
 export interface PatientProfile {
   description: string; age: number | null; diagnosis: string | null; stage: string | null;
   biomarkers: string[]; treatments: string[]; location: string | null;
   facts: Fact[]; unknowns: string[]; synthetic: true;
+  intake_answers?: Record<string,IntakeAnswer>; intake_story?:string;
 }
 export interface Trial {
   nct_id: string; title: string; conditions: string[]; status: string; phase: string[];
