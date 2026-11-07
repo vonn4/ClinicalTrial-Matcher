@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from .criteria import extract_criteria
 from .schemas import (
-    PatientProfile, TrialRecord, FollowupQuestion, FollowupPlan,
+    PatientProfile, TrialRecord, IntakeAnswer, FollowupQuestion, FollowupPlan,
     FollowupCriterionLink, UnmappedCriterion,
 )
 
@@ -73,17 +73,31 @@ def map_criterion(text: str, kind: str) -> str | None:
     return None
 
 
-def answer_state(profile: PatientProfile, key: str) -> str:
-    """Whether a particular fact is answered, or needs an update.
+def validated_followup(key: str, answer: 'IntakeAnswer') -> None:
+    """The answer type and allowed values must match the server-owned question bank."""
+    if key not in DEFINITIONS:
+        raise ValueError(f'Unsupported follow-up fact: {key}')
+    definition = DEFINITIONS[key]
+    if answer.state in {'pending', 'not_tested'} and key not in {'egfr_result','cftr_result'}:
+        raise ValueError(f'Question {key} does not accept state {answer.state}')
+    if answer.state != 'answered':
+        return
+    value = answer.value or ''
+    if len(value)>180:
+        raise ValueError('Follow-up answer is too long')
+    if definition.input_type=='select' and value not in definition.options:
+        raise ValueError(f'Invalid answer choice for {key}')
+    if definition.input_type=='number':
+        if not value.isascii() or not value.isdigit() or not 0<=int(value)<=120:
+            raise ValueError('Age must be a whole number from 0 to 120')
+    if definition.input_type=='text' and not value.strip():
+        raise ValueError('Follow-up text cannot be empty')
 
-    'answered' only means a fact was explicitly provided, NOT that the trial
-    requirement is satisfied. Eligibility assessment is independent.
-    """
-    answer=profile.intake_answers.get(key)
-    if answer:
-        if answer.state=='answered':
-            return 'answered'
-        return answer.state
+
+def answer_state(profile: PatientProfile, key: str) -> str:
+    """Answered is not the same as meeting a particular study requirement."""
+    answer=profile.followup_answers.get(key) or profile.intake_answers.get(key)
+    if answer: return answer.state
     if key=='age' and profile.age is not None: return 'answered'
     if key=='stage' and profile.stage: return 'answered'
     if key=='diagnosis_confirmation' and any(f.field=='diagnosis_confirmation' for f in profile.facts):
@@ -94,8 +108,6 @@ def answer_state(profile: PatientProfile, key: str) -> str:
         return 'answered'
     if key=='prior_systemic_chemotherapy' and any(re.search(r'\bchemotherapy\b',f.value,re.I) for f in profile.facts if f.field=='previous_treatments'):
         return 'answered'
-    # Generic free-text profiles may have evidence for this explicit presence,
-    # but absence cannot be inferred from omission.
     if key=='prior_systemic_chemotherapy' and not profile.intake_answers and re.search(r'\b(?:previously received|prior) chemotherapy\b',profile.description,re.I):
         return 'answered'
     return 'missing'
@@ -122,28 +134,37 @@ def build_followup_plan(profile: PatientProfile, trials: list[TrialRecord]) -> F
                 nct_id=trial.nct_id,criterion_id=criterion.id,kind=criterion.kind,
                 source_text=criterion.source_text))
     questions=[]
+    completed=[]
     for fact_key,links in groups.items():
         state=answer_state(profile,fact_key)
-        # An already-documented positive test still cannot confirm that the
-        # specific activating EGFR variant is known.
+        # Generic EGFR positivity does not prove a specific activating variant.
+        # Request the variant separately, but never discard a prior answer.
         if fact_key=='egfr_result' and state=='answered':
-            known=profile.intake_answers.get('egfr_result')
-            if known and known.value=='Positive / detected' and answer_state(profile,'egfr_variant')!='answered':
+            known=profile.followup_answers.get('egfr_result') or profile.intake_answers.get('egfr_result')
+            if known and known.value=='Positive / detected':
+                # Keep the previously supplied EGFR result editable even when
+                # a more specific variant question becomes the next step.
+                if 'egfr_result' in profile.followup_answers:
+                    d=DEFINITIONS['egfr_result']
+                    completed.append(FollowupQuestion(fact_key='egfr_result',question=d.question,explanation=d.explanation,
+                        input_type=d.input_type,options=list(d.options),answer_state='answered',priority=0,
+                        trial_count=len({x.nct_id for x in links}),linked_criteria=links))
                 fact_key='egfr_variant'
                 state=answer_state(profile,fact_key)
-            else:
-                continue
-        elif state=='answered':
-            continue
         definition=DEFINITIONS[fact_key]
-        distinct_trials=len({x.nct_id for x in links})
-        # This is a QUESTION PRIORITY, never an eligibility/match score.
-        score=definition.priority*10 + (distinct_trials-1)*12
+        trial_count=len({x.nct_id for x in links})
+        if state=='answered':
+            if fact_key in profile.followup_answers:
+                completed.append(FollowupQuestion(fact_key=fact_key,question=definition.question,explanation=definition.explanation,
+                    input_type=definition.input_type,options=list(definition.options),answer_state='answered',priority=0,
+                    trial_count=trial_count,linked_criteria=links))
+            continue
+        score=definition.priority*10 + (trial_count-1)*12
         questions.append(FollowupQuestion(
             fact_key=fact_key,question=definition.question,explanation=definition.explanation,
             input_type=definition.input_type,options=list(definition.options),
-            answer_state=state,priority=score,trial_count=distinct_trials,linked_criteria=links))
+            answer_state=state,priority=score,trial_count=trial_count,linked_criteria=links))
     questions.sort(key=lambda q:(-q.priority,q.fact_key))
     return FollowupPlan(questions=questions,reviewed_trial_ids=[t.nct_id for t in trials],
-        mapped_criterion_count=mapped,unmapped_criteria=unmapped,
-        notice='Question suggestions are grounded in listed criteria, not clinical assessments. Answers are not yet collected or reassessed in Increment 1.5-B.')
+        mapped_criterion_count=mapped,unmapped_criteria=unmapped,completed_questions=completed,
+        notice='Questions are source-grounded. Answers can be revised; criterion checks remain preliminary, not clinical screening.')

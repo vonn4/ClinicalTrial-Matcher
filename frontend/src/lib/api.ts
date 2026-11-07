@@ -1,4 +1,4 @@
-import type { Analysis, FollowupPlan, IntakeQuestion, IntakeSubmission, Mode, PatientProfile, Trial } from '../types';
+import type { Analysis, FollowupPlan, IntakeAnswer, IntakeQuestion, IntakeSubmission, Mode, PatientProfile, ReassessmentResponse, Trial } from '../types';
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 async function post<T>(route:string,body:unknown,token?:string):Promise<T>{
   const controller = new AbortController();
@@ -24,4 +24,8 @@ export function buildIntakeProfile(submission:IntakeSubmission):Promise<PatientP
 
 export function getTrialFollowups(profile: PatientProfile, mode: Mode, trial_ids: string[]): Promise<FollowupPlan> {
   return post('/api/v1/intake/followups', {profile,mode,trial_ids});
+}
+
+export function reassessTrials(profile:PatientProfile, mode:Mode, trial_ids:string[], updates:Record<string,IntakeAnswer>):Promise<ReassessmentResponse> {
+  return post('/api/v1/intake/reassess',{profile,mode,trial_ids,updates});
 }

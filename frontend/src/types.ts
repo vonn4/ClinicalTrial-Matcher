@@ -15,7 +15,7 @@ export interface PatientProfile {
   description: string; age: number | null; diagnosis: string | null; stage: string | null;
   biomarkers: string[]; treatments: string[]; location: string | null;
   facts: Fact[]; unknowns: string[]; synthetic: true;
-  intake_answers?: Record<string,IntakeAnswer>; intake_story?:string;
+  intake_answers?: Record<string,IntakeAnswer>; intake_story?:string; followup_answers?: Record<string,IntakeAnswer>;
 }
 export interface Trial {
   nct_id: string; title: string; conditions: string[]; status: string; phase: string[];
@@ -26,7 +26,7 @@ export interface Trial {
 export interface Criterion { id: string; kind: 'inclusion'|'exclusion'; text: string; source_text: string }
 export interface Assessment { criterion_id: string; status: Status; exclusion_triggered:boolean|null; explanation:string; patient_evidence:string[];question_for_doctor:string|null;verified_evidence:boolean }
 export interface Skeptic {criterion_id:string; independent_status:Status; exclusion_triggered:boolean|null; explanation:string; disagreement:boolean}
-export interface TrialAssessment {nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'}
+export interface TrialAssessment {nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'|'deterministic_followup'}
 export interface Analysis {mode:Mode;profile:PatientProfile;trials:Trial[];assessments:TrialAssessment[];timings_ms:Record<string,number>;disclaimer:string}
 
 export interface FollowupCriterionLink {
@@ -35,11 +35,17 @@ export interface FollowupCriterionLink {
 export interface FollowupQuestion {
   fact_key: string; question: string; explanation: string;
   input_type: 'text'|'number'|'select'; options: string[];
-  answer_state: 'missing'|'unknown'|'pending'|'not_tested'|'not_applicable'|'declined';
+  answer_state: 'missing'|'answered'|'unknown'|'pending'|'not_tested'|'not_applicable'|'declined';
   priority: number; trial_count: number; linked_criteria: FollowupCriterionLink[];
 }
 export interface UnmappedCriterion {nct_id:string;criterion_id:string;reason:string}
 export interface FollowupPlan {
   questions: FollowupQuestion[]; reviewed_trial_ids:string[];
-  mapped_criterion_count:number; unmapped_criteria:UnmappedCriterion[]; notice:string;
+  mapped_criterion_count:number; unmapped_criteria:UnmappedCriterion[]; completed_questions:FollowupQuestion[]; notice:string;
+}
+
+export interface CriterionDelta { nct_id:string; criterion_id:string; before:Status; after:Status }
+export interface ReassessmentResponse {
+  profile:PatientProfile; assessments:TrialAssessment[]; followups:FollowupPlan;
+  changed_criteria:CriterionDelta[]; notice:string;
 }

@@ -148,9 +148,32 @@ def build_profile(submission: IntakeSubmission) -> PatientProfile:
 
 
 def profile_from_guided_or_text(profile: PatientProfile) -> PatientProfile:
-    """Rebuild trusted fields instead of accepting a client-modified canonical profile."""
+    """Rebuild user facts from explicit answers; never trust derived client fields.
+
+    Correction answers remain separate and traceable rather than rewriting the
+    optional source story. This is a synthetic prototype, not source verification.
+    """
+    from .followups import validated_followup, DEFINITIONS
+    corrections = profile.followup_answers
+    for key, answer in corrections.items():
+        validated_followup(key, answer)
     if profile.intake_answers:
-        # Narrative is NOT round-tripped separately. The original guided description
-        # is informational; the canonical structure derives from explicit answers.
-        return build_profile(IntakeSubmission(answers=profile.intake_answers, narrative=profile.intake_story))
-    return deterministic_profile(profile.description)
+        combined = dict(profile.intake_answers)
+        for key, answer in corrections.items():
+            if key in QUESTION_BY_ID and key!='condition':
+                combined[key] = answer
+        base = build_profile(IntakeSubmission(answers=combined, narrative=profile.intake_story))
+    else:
+        base = deterministic_profile(profile.description)
+        for key, answer in corrections.items():
+            if key=='age': base.age = int(answer.value) if answer.state=='answered' else None
+            if key=='stage': base.stage = answer.value if answer.state=='answered' else None
+            if answer.state=='answered':
+                base.facts=[f for f in base.facts if f.field!=key]
+                base.facts.append(Fact(field=key,value=answer.value or '',
+                    evidence=f'{DEFINITIONS[key].question} — {answer.value}',source='user_corrected'))
+            if key=='egfr_result':
+                base.biomarkers=[v for v in base.biomarkers if not v.startswith('EGFR:')]
+                if answer.state=='answered':base.biomarkers.append(f'EGFR: {answer.value}')
+    base.followup_answers = corrections
+    return base
