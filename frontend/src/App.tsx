@@ -1,9 +1,9 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,ArrowRight,BarChart3,Bookmark,BookOpen,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,Sparkles,X} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
-import type {Analysis,FollowupPlan,IntakeSubmission,Mode,Page,PatientProfile,Status,Summary,Trial,TrialAssessment} from './types';
+import type {Analysis,CriterionDelta,FollowupPlan,IntakeAnswer,IntakeSubmission,Mode,Page,PatientProfile,ReassessmentResponse,Status,Summary,Trial,TrialAssessment} from './types';
 import {offlineAnalysis,sampleDescription,syntheticPatient} from './data/fixture';
-import {analyze,parseProfile,searchTrials,buildIntakeProfile,getTrialFollowups} from './lib/api';
+import {analyze,parseProfile,searchTrials,buildIntakeProfile,getTrialFollowups,reassessTrials} from './lib/api';
 import GuidedIntake from './components/GuidedIntake';
 import TrialFollowups from './components/TrialFollowups';
 
@@ -63,7 +63,7 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
   return <div className="detail-panel">
     <div className="section-eyebrow"><FlaskConical size={14}/> EVIDENCE REVIEW</div><h2>{trial.title}</h2>
     <div className="detail-meta"><span>{trial.nct_id}</span><span>•</span><span>{trial.status.replaceAll('_',' ')}</span></div>
-    <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
+    <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?.summary==='clinical_review'?'A requirement needs expert interpretation or independent screening; not confirmed eligible.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
     {assessment?<>
       <div className="mini-stats"><span><b>{counts.inclusion}</b> Inclusion</span><span><b>{counts.exclusion}</b> Exclusion</span><span><b>{counts.unknown}</b> Unresolved</span></div>
       <div className="subsection-label">CRITERION-BY-CRITERION ANALYSIS <span>{pairs.length} identified</span></div>
@@ -71,9 +71,9 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
         <button className="criterion-header" onClick={()=>setExpanded(expanded===c.id?null:c.id)} aria-expanded={expanded===c.id}>
           <div className="criterion-names"><span className="criterion-id">{c.id}</span><span className="criterion-heading">{c.text}</span></div><div className="criterion-status">{a&&<CritBadge status={a.status} kind={c.kind}/>}<ChevronDown size={14} className={expanded===c.id?'rotate':''}/></div>
         </button>
-        {expanded===c.id&&<div className="criterion-body"><div className="evidence-label">EXACT TRIAL REQUIREMENT</div><blockquote>“{c.source_text}”</blockquote><div className="evidence-label">ASSESSMENT</div><p>{a?.explanation||'Not assessed'}</p><div className="evidence-label">PATIENT EVIDENCE</div><p>{a?.patient_evidence?.length?a.patient_evidence.map(v=>`“${v}”`).join(' · '):'No verified patient evidence recorded.'}</p>{a?.question_for_doctor&&<div className="question"><Info size={14}/>{a.question_for_doctor}</div>}<div className="skeptic-row"><ShieldCheck size={14}/> Independent review: {s?.disagreement?'Disagreement flagged':s?'No disagreement recorded':'Not yet available'}</div></div>}
+        {expanded===c.id&&<div className="criterion-body"><div className="evidence-label">EXACT TRIAL REQUIREMENT</div><blockquote>“{c.source_text}”</blockquote><div className="evidence-label">ASSESSMENT</div><p>{a?.explanation||'Not assessed'}</p><div className="evidence-label">PATIENT EVIDENCE</div><p>{a?.patient_evidence?.length?a.patient_evidence.map(v=>`“${v}”`).join(' · '):'No verified patient evidence recorded.'}</p>{a?.question_for_doctor&&<div className="question"><Info size={14}/>{a.question_for_doctor}</div>}<div className="skeptic-row"><ShieldCheck size={14}/> {assessment.provenance==='deterministic_followup'?'Independent AI review not performed':`Independent review: ${s?.disagreement?'Disagreement flagged':s?'No disagreement recorded':'Not yet available'}`}</div></div>}
       </div>)}</div>
-      <div className="review-footnote"><ShieldCheck size={16}/><span>{assessment.provenance==='synthetic_replay'?'Illustrative, pre-authored independent review. Not a live model measurement.':'Independent model review performed; human clinical screening still required.'}</span></div>
+      <div className="review-footnote"><ShieldCheck size={16}/><span>{assessment.provenance==='synthetic_replay'?'Illustrative, pre-authored independent review. Not a live model measurement.':assessment.provenance==='deterministic_followup'?'Deterministic review of self-reported synthetic facts only. No AI skeptic or medical verification was performed.':'Independent model review performed; human clinical screening still required.'}</span></div>
     </>:<div className="unassessed-criteria"><div className="empty-assessment"><Info size={17}/><span>No eligibility or skeptic assessment has been performed for this profile. Trial relevance alone does not imply eligibility. Authorized AI assessment requires optional free-tier model setup.</span></div><div className="evidence-label">ORIGINAL STUDY REQUIREMENTS — NOT EVALUATED</div><pre>{trial.eligibility_text || 'Eligibility criteria are not available in this trial record.'}</pre></div>}
     {trial.url&&<a className="official-link" href={trial.url} target="_blank" rel="noopener noreferrer">View original ClinicalTrials.gov study <ExternalLink size={14}/></a>}
     <div className="disclaimer-line">Research/navigation only • Not clinical advice • Study team determines eligibility</div>
@@ -116,20 +116,41 @@ export default function App(){
   const [followupPlan,setFollowupPlan]=useState<FollowupPlan|null>(null);
   const [followupBusy,setFollowupBusy]=useState(false);
   const [followupError,setFollowupError]=useState('');
+  const [review,setReview]=useState<ReassessmentResponse|null>(null);
+  const [changedCriteria,setChangedCriteria]=useState<CriterionDelta[]>([]);
+  const [answerBusy,setAnswerBusy]=useState(false);
   useEffect(()=>{
     let active=true;
-    if(analysis.trials.length===0){setFollowupPlan(null);setFollowupBusy(false);setFollowupError('');return;}
-    setFollowupPlan(null);setFollowupError('');setFollowupBusy(true);
-    getTrialFollowups(analysis.profile,analysis.mode,analysis.trials.slice(0,8).map(t=>t.nct_id))
-      .then(plan=>{if(active)setFollowupPlan(plan);})
-      .catch(err=>{if(active)setFollowupError(err instanceof Error?err.message:'Question planning unavailable');})
+    if(analysis.trials.length===0){setFollowupPlan(null);setReview(null);setFollowupBusy(false);setFollowupError('');return;}
+    setFollowupPlan(null);setReview(null);setChangedCriteria([]);setFollowupError('');setFollowupBusy(true);
+    const ids=analysis.trials.slice(0,8).map(t=>t.nct_id);
+    // Preserve a completed opt-in LLM evaluation and the legacy fixed replay.
+    // Guided cases get an initial partial deterministic review before follow-ups.
+    const useReview=intakeMode==='guided' && !analysis.assessments.some(a=>a.provenance==='live_llm');
+    const load=useReview ? reassessTrials(analysis.profile,analysis.mode,ids,{})
+      .then(result=>{if(active){setReview(result);setFollowupPlan(result.followups);}})
+      : getTrialFollowups(analysis.profile,analysis.mode,ids)
+      .then(plan=>{if(active)setFollowupPlan(plan);});
+    load.catch(err=>{if(active)setFollowupError(err instanceof Error?err.message:'Question planning unavailable');})
       .finally(()=>{if(active)setFollowupBusy(false);});
     return ()=>{active=false;};
-  },[analysis]);
+  },[analysis,intakeMode]);
+  async function answerFollowup(factKey:string,answer:IntakeAnswer):Promise<boolean>{
+    if(answerBusy||analysis.trials.length===0)return false;
+    setAnswerBusy(true);setFollowupError('');
+    try{
+      const current=review?.profile??analysis.profile;
+      const updated=await reassessTrials(current,analysis.mode,analysis.trials.slice(0,8).map(t=>t.nct_id),{[factKey]:answer});
+      setReview(updated);setFollowupPlan(updated.followups);setChangedCriteria(updated.changed_criteria);
+      setProfile(updated.profile);setConnection('Shared facts reassessed');return true;
+    }catch(err){setFollowupError(err instanceof Error?err.message:'Unable to apply this answer');return false;}
+    finally{setAnswerBusy(false);}
+  }
 
   useEffect(()=>{localStorage.setItem('ctm-saved',JSON.stringify(saved));},[saved]);
   useEffect(()=>{fetch((import.meta.env.VITE_API_BASE_URL||'http://localhost:8000')+'/health',{signal:AbortSignal.timeout(5000)}).then(r=>r.ok?setConnection('Backend connected'):setConnection('Offline-ready')).catch(()=>setConnection('Offline-ready'));},[]);
-  const statusMap=useMemo(()=>new Map(analysis.assessments.map(a=>[a.nct_id,a])),[analysis]);
+  const displayedAssessments=review?.assessments??analysis.assessments;
+  const statusMap=useMemo(()=>new Map(displayedAssessments.map(a=>[a.nct_id,a])),[displayedAssessments]);
   const visible=analysis.trials.filter(t=>{
     const summary=statusMap.get(t.nct_id)?.summary;
     return (filter==='all'||(filter==='unresolved'&&summary==='needs_information')||(filter==='conflict'&&summary==='identified_conflict')||(filter==='unassessed'&&!summary)) && (!query||`${t.title} ${t.nct_id} ${t.conditions.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
@@ -137,22 +158,22 @@ export default function App(){
   const selectTrial=(id:string)=>{setSelected(id);setPage('discover');};
   const selectedTrial=analysis.trials.find(t=>t.nct_id===selected);
   const selectedAssessment=statusMap.get(selected);
-  const potentially=analysis.assessments.filter(a=>a.summary==='potential_match').length;
-  const unresolved=analysis.assessments.filter(a=>a.summary==='needs_information'||a.summary==='clinical_review').length;
-  const conflict=analysis.assessments.filter(a=>a.summary==='identified_conflict').length;
-  const counts=[{label:'Retrieved',value:analysis.trials.length},{label:'Assessed',value:analysis.assessments.length},{label:'Potential',value:potentially}];
+  const potentially=displayedAssessments.filter(a=>a.summary==='potential_match').length;
+  const unresolved=displayedAssessments.filter(a=>a.summary==='needs_information'||a.summary==='clinical_review').length;
+  const conflict=displayedAssessments.filter(a=>a.summary==='identified_conflict').length;
+  const counts=[{label:'Retrieved',value:analysis.trials.length},{label:'Reviewed',value:displayedAssessments.length},{label:'Potential',value:potentially}];
   function toggleSaved(id:string){setSaved(prev=>prev.includes(id)?prev.filter(i=>i!==id):[...prev,id]);}
-  function changeMode(next:Mode){setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());
+  function changeMode(next:Mode){setReview(null);setFollowupPlan(null);setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());
     setAnalysis(next==='replay'&&intakeMode==='quick'?offlineAnalysis:{...offlineAnalysis,mode:next,trials:[],assessments:[]});
     setSelected(next==='replay'&&intakeMode==='quick'?'DEMO-001':'');setLiveSearched(false);}
   function changeIntakeMode(next:'guided'|'quick'){
-    setIntakeMode(next);setError('');setLiveSearched(false);
+    setReview(null);setFollowupPlan(null);setIntakeMode(next);setError('');setLiveSearched(false);
     if(next==='quick'){setText(sampleDescription);setProfile(syntheticPatient());}
     setAnalysis(next==='quick'&&mode==='replay'?offlineAnalysis:{...offlineAnalysis,mode,trials:[],assessments:[]});
     setSelected(next==='quick'&&mode==='replay'?'DEMO-001':'');
   }
   async function runGuidedSearch(submission:IntakeSubmission){
-    setBusy(true);setError('');
+    setBusy(true);setError('');setReview(null);setChangedCriteria([]);
     try{
       const built=await buildIntakeProfile(submission);
       setProfile(built);
@@ -169,7 +190,7 @@ export default function App(){
     finally{setBusy(false);}
   }
   async function runSearch(){
-    setBusy(true);setError('');
+    setBusy(true);setError('');setReview(null);setChangedCriteria([]);
     try{
       const parsed=await parseProfile(text,mode,liveToken||undefined);setProfile(parsed);
       if(mode==='replay'){
@@ -185,7 +206,7 @@ export default function App(){
       else{setError(e instanceof Error?e.message:'Request failed');}
     }finally{setBusy(false);}
   }
-  async function runLiveAnalysis(){setBusy(true);setError('');try{const result=await analyze(profile,'live',liveToken||undefined);setAnalysis(result);setSelected(result.trials[0]?.nct_id||'');setConnection('Live AI analysis complete');}catch(e){setError(e instanceof Error?e.message:'Analysis unavailable');}finally{setBusy(false);}}
+  async function runLiveAnalysis(){setBusy(true);setError('');setReview(null);try{const result=await analyze(profile,'live',liveToken||undefined);setAnalysis(result);setSelected(result.trials[0]?.nct_id||'');setConnection('Live AI analysis complete');}catch(e){setError(e instanceof Error?e.message:'Analysis unavailable');}finally{setBusy(false);}}
   return <div className="app-shell"><Sidebar page={page} setPage={setPage} savedCount={saved.length}/><main className="main-content"><DashboardHeader mode={mode} connection={connection}/>
     <div className="safety-banner"><div><ShieldCheck size={17}/><strong>Research demonstration</strong><span>•</span> Synthetic patient data only. No medical advice or eligibility determination.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
     {page==='discover'&&<><section className="intro-heading"><div><div className="section-eyebrow"><Sparkles size={15}/> AI-ASSISTED DISCOVERY</div><h2>Start with a patient story.</h2><p>We'll find relevant studies and show exactly what is known, uncertain, or conflicting.</p></div><div className="mode-switch"><button className={mode==='replay'?'chosen':''} onClick={()=>changeMode('replay')}>Interactive sandbox</button><button className={mode==='live'?'chosen':''} onClick={()=>changeMode('live')}>Live registry</button></div></section>
@@ -200,15 +221,17 @@ export default function App(){
       <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':mode==='replay'?'Explore synthetic trials':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>}
       {error&&<div className="error-alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={15}/></button></div>}
       {mode==='live'&&liveSearched&&<div className="live-action"><Info size={17}/><div><strong>Live trial discovery completed.</strong><p>Matching studies are not eligibility assessments. AI analysis is optional and disabled on publicly deployed backends unless explicitly enabled.</p></div><button className="secondary-button" disabled={busy} onClick={runLiveAnalysis}>Run eligibility + skeptic</button></div>}
-      <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Full assessments" value={analysis.assessments.length} sub="Criterion-level evaluations"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
+      <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Studies reviewed" value={displayedAssessments.length} sub="Partial criterion checks; not clinical screening"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
       <div className="analytics-row"><div className="panel analytics-panel"><div className="panel-heading"><div><h3>Discovery funnel</h3><p>What the current pipeline processed</p></div><SlidersHorizontal size={17}/></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={counts} layout="vertical" margin={{top:5,right:24,left:0,bottom:0}}><CartesianGrid horizontal={false} stroke="#e8edf2"/><XAxis type="number" allowDecimals={false} tick={{fontSize:11,fill:'#718397'}} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="label" width={74} tick={{fontSize:11,fill:'#526579'}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{borderRadius:12,border:'1px solid #e3e9ee',fontSize:12}}/><Bar dataKey="value" barSize={17} radius={[0,6,6,0]}>{counts.map((_,i)=><Cell key={i} fill={['#355c8e','#3d988a','#88b9a8'][i]}/>)}</Bar></BarChart></ResponsiveContainer></div><div className="chart-caption">{mode==='replay'?'Fictional studies — illustrative counts':'Current live query counts, not a benchmark result'}</div></div>
-      <div className="panel insights-panel"><div className="panel-heading"><div><h3>Assessment overview</h3><p>Conservative preliminary categories</p></div><Activity size={17}/></div><div className="insights-bars">{[{label:'Potential match',count:potentially,color:'#268a75'},{label:'Information needed',count:unresolved,color:'#d2a451'},{label:'Identified conflict',count:conflict,color:'#d47665'}].map(s=><div className="insight" key={s.label}><div className="insight-meta"><span>{s.label}</span><strong>{s.count}</strong></div><div className="track"><div style={{width:`${analysis.assessments.length?s.count/analysis.assessments.length*100:0}%`,background:s.color}}/></div></div>)}</div><div className="chart-caption"><Info size={13}/> Relevance is not eligibility. Unknown is not a pass.</div></div></div>
-      <TrialFollowups plan={followupPlan} loading={followupBusy} error={followupError} onSelectTrial={selectTrial}/>
+      <div className="panel insights-panel"><div className="panel-heading"><div><h3>Assessment overview</h3><p>Conservative preliminary categories</p></div><Activity size={17}/></div><div className="insights-bars">{[{label:'Potential match',count:potentially,color:'#268a75'},{label:'Information needed',count:unresolved,color:'#d2a451'},{label:'Identified conflict',count:conflict,color:'#d47665'}].map(s=><div className="insight" key={s.label}><div className="insight-meta"><span>{s.label}</span><strong>{s.count}</strong></div><div className="track"><div style={{width:`${displayedAssessments.length?s.count/displayedAssessments.length*100:0}%`,background:s.color}}/></div></div>)}</div><div className="chart-caption"><Info size={13}/> Relevance is not eligibility. Unknown is not a pass.</div></div></div>
+      <TrialFollowups plan={followupPlan} loading={followupBusy} submitting={answerBusy} error={followupError}
+        answers={review?.profile.followup_answers||{}} changed={changedCriteria}
+        onSelectTrial={selectTrial} onAnswer={answerFollowup}/>
       <div className="results-head"><div><div className="section-eyebrow"><BookOpen size={14}/> EXPLORE RESULTS</div><h2>Clinical trial matches <span>({visible.length})</span></h2></div><div className="result-tools"><div className="search-small"><Search size={15}/><input placeholder="Filter studies..." value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="filter-box"><Filter size={14}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="unresolved">Needs info</option><option value="conflict">Conflicts</option><option value="unassessed">Not assessed</option></select></div></div></div>
       <div className="results-grid"><div className="trial-list">{visible.length?visible.map(t=><TrialCard key={t.nct_id} trial={t} assessment={statusMap.get(t.nct_id)} selected={selected===t.nct_id} saved={saved.includes(t.nct_id)} onSelect={()=>setSelected(t.nct_id)} onSave={()=>toggleSaved(t.nct_id)}/>):<div className="large-empty"><Search size={24}/><p>No studies match the current filter.</p></div>}</div><div className="panel detail-container"><EligibilityDetail trial={selectedTrial} assessment={selectedAssessment}/></div></div>
-      <div className="source-note"><Info size={15}/>{mode==='replay'?'Interactive sandbox: fictional trial data. Only the exact original example includes pre-authored educational judgments; edited profiles receive no AI eligibility or skeptic verdict.':'Live mode: Studies are retrieved from ClinicalTrials.gov. AI conclusions (when enabled) are preliminary and unvalidated.'}</div>
+      <div className="source-note"><Info size={15}/>{review?'Partial rule checks of synthetic, self-reported facts. Unknowns and unsupported criteria require review; no independent skeptic or medical verification was performed.':mode==='replay'?'Interactive sandbox: fictional trial data. Only the original quick-description example has pre-authored educational judgments.':'Live registry: public study records; model analysis requires explicit separate opt-in.'}</div>
     </>}
-    {page==='saved'&&<SavedView trials={analysis.trials} assessments={analysis.assessments} saved={saved} setSaved={setSaved} onSelect={selectTrial}/>}
+    {page==='saved'&&<SavedView trials={analysis.trials} assessments={displayedAssessments} saved={saved} setSaved={setSaved} onSelect={selectTrial}/>}
     {page==='research'&&<ResearchLab/>}
     <footer className="footer"><span>ClinicalTrial Matcher · Hackaroo 2026</span><span>Built for transparent research navigation, not clinical decisions.</span></footer>
   </main></div>
