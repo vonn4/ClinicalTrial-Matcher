@@ -7,13 +7,14 @@ from fastapi import FastAPI,HTTPException,Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .schemas import (Mode, ProfileRequest,PatientProfile,SearchRequest,SearchResponse,
-    AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse)
+    AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse,IntakeSubmission)
 from .profiling import deterministic_profile,llm_profile
 from .ranking import rank_trials
 from .clinicaltrials import search_trials,fetch_trial
 from .assessment import assess_live
 from .replay import fixture,sample_profile,replay_trials,replay_assessments
 from .sandbox import sandbox_search,is_original_sample
+from .intake import build_profile, question_bank, profile_from_guided_or_text, QUESTIONS
 from .llm import ModelUnavailable
 from .settings import MAX_TRIALS,enabled
 from .access import require_live_ai
@@ -40,6 +41,19 @@ def demo_cases():
     return {'cases':[{'id':f['case_id'],'name':f['name'],'description':f['description']}],
             'profile':sample_profile().model_dump(),'notice':f['notice']}
 
+@app.get('/api/v1/intake/questions')
+def intake_questions(condition: str = '', include_all: bool = False):
+    """Public synthetic questionnaire; no AI key or paid API required."""
+    return {'version': '1.5-A', 'questions': [q.model_dump() for q in (QUESTIONS if include_all else question_bank(condition))],
+            'synthetic_only': True}
+
+@app.post('/api/v1/intake/profile',response_model=PatientProfile)
+def intake_profile(submission: IntakeSubmission):
+    try:
+        return build_profile(submission)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
 @app.post('/api/v1/profiles/parse',response_model=PatientProfile)
 async def parse_profile(req:ProfileRequest,request:Request):
     if req.mode==Mode.live and enabled('ENABLE_LIVE_AI'):
@@ -51,7 +65,7 @@ async def parse_profile(req:ProfileRequest,request:Request):
 @app.post('/api/v1/trials/search',response_model=SearchResponse)
 async def search(req:SearchRequest):
     if req.mode==Mode.replay:
-        profile=deterministic_profile(req.profile.description)
+        profile=profile_from_guided_or_text(req.profile)
         trials=sandbox_search(profile,req.limit)
         return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='synthetic_sandbox_bm25')
     if not req.profile.diagnosis:
@@ -99,7 +113,7 @@ async def assess(req:AssessRequest,request:Request):
 async def run_analysis(req:AnalysisRequest,request:Request):
     start=time.perf_counter()
     if req.mode==Mode.replay:
-        profile=deterministic_profile(req.profile.description)
+        profile=profile_from_guided_or_text(req.profile)
         original=is_original_sample(profile)
         trials=(replay_trials()[:req.limit] if original else sandbox_search(profile,req.limit))
         ids={t.nct_id for t in trials}
