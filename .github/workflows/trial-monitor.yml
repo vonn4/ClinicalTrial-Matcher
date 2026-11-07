@@ -1,0 +1,29 @@
+name: Public registry change monitor (opt-in)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 12 * * *'
+permissions:
+  contents: write
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx
+      - name: Fetch configured public study IDs (no patient information)
+        run: python scripts/monitor_studies.py
+      - name: Commit snapshot when configured and changed
+        run: |
+          if [ -f monitor/public_snapshot.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add monitor/public_snapshot.json
+            if ! git diff --cached --quiet; then
+              git commit -m "data: update monitored public registry snapshot"
+              git push
+            fi
+          fi
