@@ -1,0 +1,26 @@
+[
+  {
+    "nct_id": "DEMO-004",
+    "title": "Synthetic trial: investigational therapy in sickle cell disease",
+    "conditions": ["Sickle Cell Disease"],
+    "status": "RECRUITING",
+    "phase": ["PHASE2"],
+    "locations": ["Atlanta, Georgia, United States"],
+    "eligibility_text": "Inclusion Criteria:\n- Adults aged 18 through 60 years\n- Confirmed sickle cell disease diagnosis\nExclusion Criteria:\n- Prior stem cell transplantation",
+    "brief_summary": "Fictional sickle cell research scenario for interface testing only.",
+    "updated": "2026-11-05", "url": null,
+    "source": "synthetic_fixture", "retrieved_at": null, "relevance_score": 0
+  },
+  {
+    "nct_id": "DEMO-005",
+    "title": "Synthetic trial: investigational CFTR modulator in cystic fibrosis",
+    "conditions": ["Cystic Fibrosis"],
+    "status": "NOT_YET_RECRUITING",
+    "phase": ["PHASE2"],
+    "locations": ["Boston, Massachusetts, United States"],
+    "eligibility_text": "Inclusion Criteria:\n- Age 12 years or older\n- Confirmed cystic fibrosis diagnosis\n- Specific CFTR variant confirmed on genetic testing\nExclusion Criteria:\n- Recent lung transplant",
+    "brief_summary": "Fictional genetic disease scenario for interface testing only.",
+    "updated": "2026-11-05", "url": null,
+    "source": "synthetic_fixture", "retrieved_at": null, "relevance_score": 0
+  }
+]
