@@ -15,9 +15,9 @@ All input and test records must be **fictional**. It does not determine medical 
 - The patient reviews answers before trial discovery. Correcting inputs and resubmitting rebuilds the profile.
 - Backend reconstruction prevents forged derived fields from being trusted in synthetic replay.
 - The original free-text mode and static lung-cancer teaching example remain functional.
-- Guided profiles have **no eligibility judgments** yet. They only retrieve candidate fictional studies in sandbox mode.
+- Guided profiles initially retrieve candidate fictional studies. Increment C adds bounded rule-based criterion reviews; **not independent AI assessments or clinical eligibility decisions**.
 
-### Increment B (next): criterion-to-fact mappings and follow-up queue
+### Increment B (implemented): criterion-to-fact mappings and follow-up queue
 
 - Preserve the original trial requirement text and stable source reference.
 - Map supported inclusion/exclusion criteria to typed fact identifiers.
@@ -25,14 +25,14 @@ All input and test records must be **fictional**. It does not determine medical 
 - Generate grounded, editable questions with explanatory source links.
 - Do not ask speculative or unsupported questions from an LLM.
 
-### Increment C: deduplication and incremental reassessment
+### Increment C (implemented in review): shared answers and incremental reassessment
 
-- One canonical patient fact registry powers all studies.
+- One canonical patient fact registry powers all studies; corrections are preserved separately from the optional patient story.
 - Deduplicate only semantically equivalent questions with the same fact key and answer requirements.
 - For example, whether testing occurred and whether a specific variant was found are distinct facts.
 - Each answer updates all dependent criterion evaluations while preserving differing thresholds.
-- Invalidated or contradicted facts revoke earlier preliminary judgments.
-- Newly answered facts never automatically certify eligibility.
+- Invalidated or contradicted facts revoke earlier preliminary judgments; linked criteria are recalculated from their original source text.
+- Newly answered facts never automatically certify eligibility. Full coverage without independent review remains `clinical_review`.
 
 ### Increment D: measured UX and safety tests
 
@@ -92,3 +92,59 @@ Do not merge until CI is green and the preview is checked manually in a browser.
 - Acceptance scenario: guided NSCLC with age unknown → one age question
   linking three studies; EGFR pending → a distinct pending-status question;
   opening Why are we asking? shows trial-specific verbatim criteria.
+
+## Increment 1.5-C — concrete API and interaction contract
+
+`POST /api/v1/intake/reassess` accepts a `ReassessmentRequest`: the current
+**synthetic** patient profile, 1–8 known study identifiers, mode (`replay` or
+`live`), and a bounded dictionary of new answer states keyed by the canonical
+fact identifier. Only keys already linked to retrieved, server-fetched criteria
+can be updated. The request cannot supply its own eligibility criteria.
+
+Example (fictional lung cancer baseline with unknown age):
+
+```json
+{
+  "mode":"replay",
+  "trial_ids":["DEMO-001","DEMO-002","DEMO-003"],
+  "profile":{"description":"Synthetic guided patient profile ...", "synthetic":true,
+    "intake_answers":{"condition":{"state":"answered","value":"non-small cell lung cancer"},
+    "age":{"state":"unknown","value":null}}},
+  "updates":{"age":{"state":"answered","value":"42"}}
+}
+```
+
+Response: rebuilt canonical patient profile; independent rule-based criterion
+reviews for each study; suggested **remaining** shared questions; a list of
+previously answered questions that can be edited; and `changed_criteria`
+records for every status that changed after the answer.
+
+We do **not** assume all trial criteria are parseable. Unsupported and complex
+rules remain `clinical_review`; an unmeasured AI skeptic is never fabricated.
+A positive EGFR result still requires variant clarification and expert review.
+Corrections from 42 to 16 or from an answer back to unknown are reflected
+across every linked age criterion, while each study maintains its own age limit.
+
+### Manual test scenario
+
+1. Run `python run_local.py` and open `http://localhost:5173`.
+2. Select Guided intake / Interactive sandbox; choose NSCLC and mark age unknown.
+3. Complete the profile and discover DEMO-001/002/003.
+4. Find the **one age question** labeled **3 trials** and answer **42**.
+5. Confirm three age criteria change from unknown to met; exclusions stay separate.
+6. Use **Edit** next to the applied age answer; change it to **16**.
+7. Confirm three age criteria change to *not met*, without any eligibility pass.
+8. Mark EGFR pending and confirm it is not treated as a negative result.
+9. Open the trial evidence pane; it must state that no independent AI skeptic
+   or clinical screening has taken place.
+
+`run_local.py --check` now includes a live HTTP smoke test for one-answer-to-
+three-criteria reassessment. Automated backend tests cover corrections,
+invalid answers, mismatched IDs, EGFR ambiguity, and contradictory treatment
+history. Actual frontend production build remains a separate GitHub CI gate.
+
+## Release status and next increment
+
+A and B are under draft review. C is an additional draft increment; merge only
+after browser review. D still covers real browser automation, usability
+measurements, and safety evaluation. No real patient data or paid services.
