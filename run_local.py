@@ -88,11 +88,26 @@ def verify_workflow(backend_url: str, frontend_url: str) -> None:
     if len(age_questions) != 1 or age_questions[0]['trial_count'] != 3:
         raise RuntimeError('Cross-trial question deduplication failed')
 
+    # MVP 1.5-C: one follow-up response must change all linked study age
+    # requirements, while any chemotherapy exclusion remains independent.
+    preliminary = request_json(f'{backend_url}/api/v1/intake/reassess', {
+        'profile': guided, 'mode': 'replay',
+        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003'], 'updates': {}})
+    refined = request_json(f'{backend_url}/api/v1/intake/reassess', {
+        'profile': preliminary['profile'], 'mode': 'replay',
+        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003'],
+        'updates': {'age': {'state': 'answered', 'value': '42'}}})
+    if (len(refined['changed_criteria']) != 3 or
+            {x['nct_id'] for x in refined['changed_criteria']} != {'DEMO-001', 'DEMO-002', 'DEMO-003'} or
+            any(x['after'] != 'met' for x in refined['changed_criteria']) or
+            any(a['provenance'] != 'deterministic_followup' or a['skeptic'] for a in refined['assessments'])):
+        raise RuntimeError('MVP 1.5-C shared response did not safely update all study criteria')
+
     with urlopen(frontend_url, timeout=5) as response:
         page = response.read(30000).decode('utf8', errors='replace')
         if response.status != 200 or '<div id="root"></div>' not in page:
             raise RuntimeError('Vite did not serve the expected React application')
-    print('PASS: React page, backend health, editable intake, disease questions, profile preservation, trial retrieval, replay safety')
+    print('PASS: React page, backend health, guided intake, shared questions, cross-trial answer updates, replay safety')
 
 
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
@@ -182,7 +197,7 @@ def main() -> int:
         verify_workflow(b, f)
         print((
             f'\nREADY: {f}\n'
-            'Guided intake: select Guided intake, review your profile, then discover fictional trials.\n'
+            'Guided intake: discover fictional trials, answer a shared follow-up and see linked criteria update.\n'
             'Quick description: edit fictional patient text or choose a scenario.\n'
             'Live registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\n'
             'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
