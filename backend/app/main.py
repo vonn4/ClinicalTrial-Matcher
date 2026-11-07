@@ -12,7 +12,8 @@ from .profiling import deterministic_profile,llm_profile
 from .ranking import rank_trials
 from .clinicaltrials import search_trials,fetch_trial
 from .assessment import assess_live
-from .replay import fixture,sample_profile,verify_replay_profile,replay_trials,replay_assessments
+from .replay import fixture,sample_profile,replay_trials,replay_assessments
+from .sandbox import sandbox_search,is_original_sample
 from .llm import ModelUnavailable
 from .settings import MAX_TRIALS,enabled
 from .access import require_live_ai
@@ -22,7 +23,7 @@ app=FastAPI(title='ClinicalTrial Matcher API',version='0.1.0',
     description='Synthetic-patient research navigation prototype; not clinical advice.')
 allowed=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(',')
 app.add_middleware(CORSMiddleware,allow_origins=[o.strip() for o in allowed if o.strip()],
-                   allow_methods=['GET','POST'],allow_headers=['Content-Type'])
+                   allow_methods=['GET','POST'],allow_headers=['Content-Type','X-Live-Access-Token'])
 
 @app.exception_handler(ModelUnavailable)
 async def model_unavailable(_req:Request,exc:ModelUnavailable):
@@ -41,8 +42,6 @@ def demo_cases():
 
 @app.post('/api/v1/profiles/parse',response_model=PatientProfile)
 async def parse_profile(req:ProfileRequest,request:Request):
-    if req.mode==Mode.replay and req.description.strip()!=fixture()['description']:
-        raise HTTPException(400,'Replay uses the exact sample profile. Choose Live to parse a different synthetic description.')
     if req.mode==Mode.live and enabled('ENABLE_LIVE_AI'):
         require_live_ai(request)
         try:return await llm_profile(req.description)
@@ -52,10 +51,9 @@ async def parse_profile(req:ProfileRequest,request:Request):
 @app.post('/api/v1/trials/search',response_model=SearchResponse)
 async def search(req:SearchRequest):
     if req.mode==Mode.replay:
-        try:verify_replay_profile(req.profile)
-        except ValueError as e:raise HTTPException(400,str(e)) from e
-        trials=rank_trials(req.profile,replay_trials())[:req.limit]
-        return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='synthetic_replay_ranked_bm25')
+        profile=deterministic_profile(req.profile.description)
+        trials=sandbox_search(profile,req.limit)
+        return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='synthetic_sandbox_bm25')
     if not req.profile.diagnosis:
         raise HTTPException(422,'Review and enter a diagnosis before searching public studies')
     try:
@@ -81,8 +79,9 @@ async def get_trial(nct_id:str):
 @app.post('/api/v1/trials/assess',response_model=TrialAssessment)
 async def assess(req:AssessRequest,request:Request):
     if req.mode==Mode.replay:
-        try:verify_replay_profile(req.profile)
-        except ValueError as e:raise HTTPException(400,str(e)) from e
+        profile=deterministic_profile(req.profile.description)
+        if not is_original_sample(profile):
+            raise HTTPException(422,'Custom sandbox descriptions are searchable but have no pre-authored eligibility decisions. Live AI requires separate opt-in.')
         a=next((x for x in replay_assessments() if x.nct_id==req.trial.nct_id),None)
         if not a:raise HTTPException(400,'No replay assessment for the selected study')
         return a
@@ -100,13 +99,15 @@ async def assess(req:AssessRequest,request:Request):
 async def run_analysis(req:AnalysisRequest,request:Request):
     start=time.perf_counter()
     if req.mode==Mode.replay:
-        try:verify_replay_profile(req.profile)
-        except ValueError as e:raise HTTPException(400,str(e)) from e
-        trials=replay_trials()[:req.limit]
+        profile=deterministic_profile(req.profile.description)
+        original=is_original_sample(profile)
+        trials=(replay_trials()[:req.limit] if original else sandbox_search(profile,req.limit))
         ids={t.nct_id for t in trials}
-        assessments=[a for a in replay_assessments() if a.nct_id in ids]
-        return AnalysisResponse(mode=req.mode,profile=req.profile,trials=trials,assessments=assessments,
-             timings_ms={'replay_load':round((time.perf_counter()-start)*1000,2)})
+        assessments=([a for a in replay_assessments() if a.nct_id in ids] if original else [])
+        return AnalysisResponse(mode=req.mode,profile=profile,trials=trials,assessments=assessments,
+             timings_ms={'sandbox_load':round((time.perf_counter()-start)*1000,2)},
+             disclaimer=('Synthetic fixed replay with pre-authored educational assessments.' if original else
+                         'Interactive fictional trial discovery only. No eligibility or skeptic judgments have been performed.'))
     require_live_ai(request)
     if not req.profile.diagnosis:
         raise HTTPException(422,'Verified synthetic diagnosis is required')
