@@ -32,10 +32,12 @@ def test_replay_analysis_and_criteria_coverage():
     assert conflict['summary']=='identified_conflict'
     assert any(x['exclusion_triggered'] for x in conflict['assessments'])
 
-def test_replay_refuses_modified_patient():
+def test_replay_custom_patient_is_unassessed():
     profile=sample_profile().model_copy(update={'description':'45-year-old person with breast cancer.'})
     res=client.post('/api/v1/analysis/run',json={'mode':'replay','profile':profile.model_dump()})
-    assert res.status_code==400
+    assert res.status_code==200
+    assert res.json()['assessments']==[]
+    assert res.json()['profile']['age']==45
 
 def test_live_ai_default_disabled():
     profile=sample_profile()
