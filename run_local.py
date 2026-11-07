@@ -167,8 +167,14 @@ def main() -> int:
         procs.append(subprocess.Popen([npm, 'run', 'dev', '--', '--host', '127.0.0.1', '--port', str(args.frontend_port), '--strictPort'], cwd=FRONTEND, env=env))
         wait_until(f, 'React/Vite', procs)
         verify_workflow(b, f)
-        print(f'\nREADY: {f}\nGuided intake: select Guided intake, review your profile, then discover fictional trials.
-Quick description: edit fictional patient text or choose a scenario.\nLive registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\nLive AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\nStop both services with Ctrl+C.\n', flush=True)
+        print((
+            f'\nREADY: {f}\n'
+            'Guided intake: select Guided intake, review your profile, then discover fictional trials.\n'
+            'Quick description: edit fictional patient text or choose a scenario.\n'
+            'Live registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\n'
+            'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
+            'Stop both services with Ctrl+C.\n'
+        ), flush=True)
         if not args.no_browser:
             webbrowser.open(f)
         while all(p.poll() is None for p in procs):
