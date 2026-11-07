@@ -3,18 +3,20 @@ import os
 import time
 import logging
 import httpx
+import asyncio
 from fastapi import FastAPI,HTTPException,Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .schemas import (Mode, ProfileRequest,PatientProfile,SearchRequest,SearchResponse,
-    AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse,IntakeSubmission)
+    AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse,IntakeSubmission,FollowupRequest,FollowupPlan)
 from .profiling import deterministic_profile,llm_profile
 from .ranking import rank_trials
 from .clinicaltrials import search_trials,fetch_trial
 from .assessment import assess_live
 from .replay import fixture,sample_profile,replay_trials,replay_assessments
-from .sandbox import sandbox_search,is_original_sample
+from .sandbox import sandbox_search,is_original_sample,all_sandbox_trials
 from .intake import build_profile, question_bank, profile_from_guided_or_text, QUESTIONS
+from .followups import build_followup_plan
 from .llm import ModelUnavailable
 from .settings import MAX_TRIALS,enabled
 from .access import require_live_ai
@@ -53,6 +55,33 @@ def intake_profile(submission: IntakeSubmission):
         return build_profile(submission)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+@app.post('/api/v1/intake/followups',response_model=FollowupPlan)
+async def intake_followups(req: FollowupRequest):
+    """Map original trial requirements to ONE shared question per missing fact.
+
+    Only trial IDs are accepted from the caller. Criteria and source text are
+    fetched from server-owned fixtures or the official registry, not supplied
+    by the browser. This does not perform eligibility assessment.
+    """
+    profile=profile_from_guided_or_text(req.profile)
+    if req.mode==Mode.replay:
+        if any(not trial_id.startswith('DEMO-') for trial_id in req.trial_ids):
+            raise HTTPException(422,'Sandbox follow-ups require synthetic DEMO study IDs')
+        known={trial.nct_id:trial for trial in all_sandbox_trials()}
+        missing=set(req.trial_ids)-set(known)
+        if missing:
+            raise HTTPException(404,'Synthetic study not found')
+        studies=[known[trial_id] for trial_id in req.trial_ids]
+    else:
+        if any(not trial_id.startswith('NCT') for trial_id in req.trial_ids):
+            raise HTTPException(422,'Live follow-ups require official NCT study IDs')
+        try:
+            studies=await asyncio.gather(*(fetch_trial(trial_id) for trial_id in req.trial_ids))
+        except httpx.HTTPError as exc:
+            logger.warning('Unable to fetch official requirements: %s',type(exc).__name__)
+            raise HTTPException(502,'Official study requirements currently unavailable') from exc
+    return build_followup_plan(profile,studies)
 
 @app.post('/api/v1/profiles/parse',response_model=PatientProfile)
 async def parse_profile(req:ProfileRequest,request:Request):

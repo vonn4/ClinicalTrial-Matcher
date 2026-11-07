@@ -67,3 +67,18 @@ Date: 2026-11-06. Stage: v0.1 implementation source (not a deployed/clinically v
 - [ ] Deploy React to Cloudflare Pages and FastAPI to Render Free with `ENABLE_LIVE_AI=false`
 - [ ] Conduct TREC retrieval, criterion-label, skeptic and security experiments
 - [ ] Generate measured poster charts from experiment artifacts
+
+## MVP 1.5-B (question planning) — implementation in review
+
+- Server-side criterion-to-fact mapping for explicitly recognized source text.
+- One shared patient fact produces one follow-up question linked to all
+  applicable trial criteria, with exact original source evidence and distinct
+  age thresholds preserved; unsupported requirements flagged for review.
+- `POST /api/v1/intake/followups` accepts bounded trial IDs, verifies official
+  source or own fictional fixtures; no arbitrary client-supplied trial text.
+- Frontend displays why each follow-up is asked, which studies are affected,
+  pending/not-tested states, and unmapped-criteria notices.
+- **Not yet present:** submission of follow-up answers, persistent answer
+  storage, incremental criterion reassessment, or independently validated AI.
+- 46 backend tests pass in the local test environment; frontend full build
+  requires GitHub CI review.

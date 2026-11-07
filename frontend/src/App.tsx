@@ -1,10 +1,11 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,ArrowRight,BarChart3,Bookmark,BookOpen,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,Sparkles,X} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
-import type {Analysis,IntakeSubmission,Mode,Page,PatientProfile,Status,Summary,Trial,TrialAssessment} from './types';
+import type {Analysis,FollowupPlan,IntakeSubmission,Mode,Page,PatientProfile,Status,Summary,Trial,TrialAssessment} from './types';
 import {offlineAnalysis,sampleDescription,syntheticPatient} from './data/fixture';
-import {analyze,parseProfile,searchTrials,buildIntakeProfile} from './lib/api';
+import {analyze,parseProfile,searchTrials,buildIntakeProfile,getTrialFollowups} from './lib/api';
 import GuidedIntake from './components/GuidedIntake';
+import TrialFollowups from './components/TrialFollowups';
 
 const STATUS_LABEL:Record<Summary,string>={potential_match:'Potential match',needs_information:'Needs more information',identified_conflict:'Eligibility conflict',clinical_review:'Clinical review required'};
 const SANDBOX_EXAMPLES=[
@@ -112,6 +113,20 @@ export default function App(){
   const [query,setQuery]=useState('');
   const [liveSearched,setLiveSearched]=useState(false);
   const [liveToken,setLiveToken]=useState('');
+  const [followupPlan,setFollowupPlan]=useState<FollowupPlan|null>(null);
+  const [followupBusy,setFollowupBusy]=useState(false);
+  const [followupError,setFollowupError]=useState('');
+  useEffect(()=>{
+    let active=true;
+    if(analysis.trials.length===0){setFollowupPlan(null);setFollowupBusy(false);setFollowupError('');return;}
+    setFollowupPlan(null);setFollowupError('');setFollowupBusy(true);
+    getTrialFollowups(analysis.profile,analysis.mode,analysis.trials.slice(0,8).map(t=>t.nct_id))
+      .then(plan=>{if(active)setFollowupPlan(plan);})
+      .catch(err=>{if(active)setFollowupError(err instanceof Error?err.message:'Question planning unavailable');})
+      .finally(()=>{if(active)setFollowupBusy(false);});
+    return ()=>{active=false;};
+  },[analysis]);
+
   useEffect(()=>{localStorage.setItem('ctm-saved',JSON.stringify(saved));},[saved]);
   useEffect(()=>{fetch((import.meta.env.VITE_API_BASE_URL||'http://localhost:8000')+'/health',{signal:AbortSignal.timeout(5000)}).then(r=>r.ok?setConnection('Backend connected'):setConnection('Offline-ready')).catch(()=>setConnection('Offline-ready'));},[]);
   const statusMap=useMemo(()=>new Map(analysis.assessments.map(a=>[a.nct_id,a])),[analysis]);
@@ -188,6 +203,7 @@ export default function App(){
       <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Full assessments" value={analysis.assessments.length} sub="Criterion-level evaluations"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
       <div className="analytics-row"><div className="panel analytics-panel"><div className="panel-heading"><div><h3>Discovery funnel</h3><p>What the current pipeline processed</p></div><SlidersHorizontal size={17}/></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={counts} layout="vertical" margin={{top:5,right:24,left:0,bottom:0}}><CartesianGrid horizontal={false} stroke="#e8edf2"/><XAxis type="number" allowDecimals={false} tick={{fontSize:11,fill:'#718397'}} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="label" width={74} tick={{fontSize:11,fill:'#526579'}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{borderRadius:12,border:'1px solid #e3e9ee',fontSize:12}}/><Bar dataKey="value" barSize={17} radius={[0,6,6,0]}>{counts.map((_,i)=><Cell key={i} fill={['#355c8e','#3d988a','#88b9a8'][i]}/>)}</Bar></BarChart></ResponsiveContainer></div><div className="chart-caption">{mode==='replay'?'Fictional studies — illustrative counts':'Current live query counts, not a benchmark result'}</div></div>
       <div className="panel insights-panel"><div className="panel-heading"><div><h3>Assessment overview</h3><p>Conservative preliminary categories</p></div><Activity size={17}/></div><div className="insights-bars">{[{label:'Potential match',count:potentially,color:'#268a75'},{label:'Information needed',count:unresolved,color:'#d2a451'},{label:'Identified conflict',count:conflict,color:'#d47665'}].map(s=><div className="insight" key={s.label}><div className="insight-meta"><span>{s.label}</span><strong>{s.count}</strong></div><div className="track"><div style={{width:`${analysis.assessments.length?s.count/analysis.assessments.length*100:0}%`,background:s.color}}/></div></div>)}</div><div className="chart-caption"><Info size={13}/> Relevance is not eligibility. Unknown is not a pass.</div></div></div>
+      <TrialFollowups plan={followupPlan} loading={followupBusy} error={followupError} onSelectTrial={selectTrial}/>
       <div className="results-head"><div><div className="section-eyebrow"><BookOpen size={14}/> EXPLORE RESULTS</div><h2>Clinical trial matches <span>({visible.length})</span></h2></div><div className="result-tools"><div className="search-small"><Search size={15}/><input placeholder="Filter studies..." value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="filter-box"><Filter size={14}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="unresolved">Needs info</option><option value="conflict">Conflicts</option><option value="unassessed">Not assessed</option></select></div></div></div>
       <div className="results-grid"><div className="trial-list">{visible.length?visible.map(t=><TrialCard key={t.nct_id} trial={t} assessment={statusMap.get(t.nct_id)} selected={selected===t.nct_id} saved={saved.includes(t.nct_id)} onSelect={()=>setSelected(t.nct_id)} onSave={()=>toggleSaved(t.nct_id)}/>):<div className="large-empty"><Search size={24}/><p>No studies match the current filter.</p></div>}</div><div className="panel detail-container"><EligibilityDetail trial={selectedTrial} assessment={selectedAssessment}/></div></div>
       <div className="source-note"><Info size={15}/>{mode==='replay'?'Interactive sandbox: fictional trial data. Only the exact original example includes pre-authored educational judgments; edited profiles receive no AI eligibility or skeptic verdict.':'Live mode: Studies are retrieved from ClinicalTrials.gov. AI conclusions (when enabled) are preliminary and unvalidated.'}</div>

@@ -23,6 +23,32 @@ ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented 
 | Research metrics | Metric scripts implemented; **no experiments run** | Dashboard intentionally shows no fabricated numbers |
 | Public hosting | Config and instructions provided; **not deployed** | Cloudflare Pages + Render Free |
 
+## Increment 1.5-B — shared trial-specific follow-up question planning
+
+After completing **Guided intake** and discovering fictional trials, the dashboard
+now shows **Questions that could clarify your trial matches**. Each question
+is mapped to exact server-owned inclusion/exclusion source lines. The same
+canonical fact (for example, age) generates just **one question for all linked
+trials**, even when their thresholds differ. Click **Why are we asking?** to
+inspect every affected trial and its original criterion.
+
+To demonstrate cross-trial deduplication, enter non-small cell lung cancer but
+set age to **I don't know**, then submit. The age question is linked to
+DEMO-001, DEMO-002, and DEMO-003. Entering an age *during baseline intake*
+removes that question from the follow-up queue. EGFR **pending** and **not
+tested** remain distinct from negative. Complex/unsupported criteria are
+flagged for human review rather than silently inferred.
+
+**Scope:** This stage is a **question-planning preview**. It does NOT yet
+collect follow-up answers, update eligibility statuses, or invoke Gemini.
+Answer submission and independent per-trial reassessment belong to **1.5-C**.
+The demo uses fictional patients/studies only, no paid API or clinical advice.
+
+New endpoint: `POST /api/v1/intake/followups` accepts only trial IDs and a
+synthetic patient profile. The backend always loads criteria from its own
+fixtures or the official public registry; the caller cannot inject criteria.
+Run `python -m pytest -q backend/tests` to verify behavior.
+
 ## Run and verify the interactive app (recommended)
 
 From the repository root, **use one launcher instead of starting two terminals manually**:
