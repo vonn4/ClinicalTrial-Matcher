@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: clinicaltrial-matcher-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ENABLE_LIVE_AI
+        value: "false"
+      - key: ENABLE_SEMANTIC
+        value: "false"
+      - key: MAX_ASSESSMENTS
+        value: "3"
+      - key: CORS_ORIGINS
+        value: https://YOUR-PAGES-PROJECT.pages.dev

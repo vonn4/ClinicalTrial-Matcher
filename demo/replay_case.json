@@ -1,0 +1,348 @@
+{
+  "case_id": "synthetic-nsclc-01",
+  "name": "Synthetic NSCLC patient \u2014 42 years old",
+  "description": "42-year-old patient with stage III non-small cell lung cancer. Previously received chemotherapy. Lives in Kansas City, Missouri. EGFR mutation status is unknown.",
+  "trials": [
+    {
+      "nct_id": "DEMO-001",
+      "title": "Synthetic trial: targeted therapy after prior chemotherapy",
+      "conditions": [
+        "Non-Small Cell Lung Cancer"
+      ],
+      "status": "RECRUITING",
+      "phase": [
+        "PHASE2"
+      ],
+      "locations": [
+        "Kansas City, Missouri, United States"
+      ],
+      "eligibility_text": "Inclusion Criteria:\n- Patient is at least 18 years old\n- Histologically confirmed non-small cell lung cancer\n- Known EGFR activating mutation\nExclusion Criteria:\n- Active uncontrolled infection",
+      "brief_summary": "Synthetic oncology study for demonstration only.",
+      "updated": "2026-11-05",
+      "url": null,
+      "source": "synthetic_fixture",
+      "retrieved_at": null,
+      "relevance_score": 4.21
+    },
+    {
+      "nct_id": "DEMO-002",
+      "title": "Synthetic trial: first-line therapy for untreated NSCLC",
+      "conditions": [
+        "Non-Small Cell Lung Cancer"
+      ],
+      "status": "NOT_YET_RECRUITING",
+      "phase": [
+        "PHASE3"
+      ],
+      "locations": [
+        "St. Louis, Missouri, United States"
+      ],
+      "eligibility_text": "Inclusion Criteria:\n- Adult patient at least 18 years old\n- Non-small cell lung cancer diagnosis\nExclusion Criteria:\n- Any prior systemic chemotherapy",
+      "brief_summary": "Synthetic first-line oncology study for demonstration only.",
+      "updated": "2026-11-04",
+      "url": null,
+      "source": "synthetic_fixture",
+      "retrieved_at": null,
+      "relevance_score": 3.88
+    },
+    {
+      "nct_id": "DEMO-003",
+      "title": "Synthetic trial: investigational immunotherapy in advanced NSCLC",
+      "conditions": [
+        "Non-Small Cell Lung Cancer"
+      ],
+      "status": "RECRUITING",
+      "phase": [
+        "PHASE1"
+      ],
+      "locations": [
+        "Chicago, Illinois, United States"
+      ],
+      "eligibility_text": "Inclusion Criteria:\n- Adults 18 years or older\n- Stage III or IV non-small cell lung cancer\nExclusion Criteria:\n- Active autoimmune disease requiring immunosuppressive medications",
+      "brief_summary": "Synthetic oncology study with additional medical screening required.",
+      "updated": "2026-10-29",
+      "url": null,
+      "source": "synthetic_fixture",
+      "retrieved_at": null,
+      "relevance_score": 3.51
+    }
+  ],
+  "assessments": [
+    {
+      "nct_id": "DEMO-001",
+      "criteria": [
+        {
+          "id": "IN-1",
+          "kind": "inclusion",
+          "text": "Patient is at least 18 years old",
+          "source_text": "Patient is at least 18 years old"
+        },
+        {
+          "id": "IN-2",
+          "kind": "inclusion",
+          "text": "Histologically confirmed non-small cell lung cancer",
+          "source_text": "Histologically confirmed non-small cell lung cancer"
+        },
+        {
+          "id": "IN-3",
+          "kind": "inclusion",
+          "text": "Known EGFR activating mutation",
+          "source_text": "Known EGFR activating mutation"
+        },
+        {
+          "id": "EX-1",
+          "kind": "exclusion",
+          "text": "Active uncontrolled infection",
+          "source_text": "Active uncontrolled infection"
+        }
+      ],
+      "assessments": [
+        {
+          "criterion_id": "IN-1",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "42-year-old"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "IN-2",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "non-small cell lung cancer"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "IN-3",
+          "status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Patient profile does not provide enough verified information to decide.",
+          "patient_evidence": [],
+          "question_for_doctor": "Can my care team confirm this eligibility requirement?",
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "EX-1",
+          "status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Patient profile does not provide enough verified information to decide.",
+          "patient_evidence": [],
+          "question_for_doctor": "Can my care team confirm this eligibility requirement?",
+          "verified_evidence": true
+        }
+      ],
+      "skeptic": [
+        {
+          "criterion_id": "IN-1",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "IN-2",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "IN-3",
+          "independent_status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "EX-1",
+          "independent_status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        }
+      ],
+      "summary": "needs_information",
+      "unresolved": [
+        "IN-3",
+        "EX-1"
+      ],
+      "provenance": "synthetic_replay"
+    },
+    {
+      "nct_id": "DEMO-002",
+      "criteria": [
+        {
+          "id": "IN-1",
+          "kind": "inclusion",
+          "text": "Adult patient at least 18 years old",
+          "source_text": "Adult patient at least 18 years old"
+        },
+        {
+          "id": "IN-2",
+          "kind": "inclusion",
+          "text": "Non-small cell lung cancer diagnosis",
+          "source_text": "Non-small cell lung cancer diagnosis"
+        },
+        {
+          "id": "EX-1",
+          "kind": "exclusion",
+          "text": "Any prior systemic chemotherapy",
+          "source_text": "Any prior systemic chemotherapy"
+        }
+      ],
+      "assessments": [
+        {
+          "criterion_id": "IN-1",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "42-year-old"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "IN-2",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "non-small cell lung cancer"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "EX-1",
+          "status": "met",
+          "exclusion_triggered": true,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "chemotherapy"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        }
+      ],
+      "skeptic": [
+        {
+          "criterion_id": "IN-1",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "IN-2",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "EX-1",
+          "independent_status": "met",
+          "exclusion_triggered": true,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        }
+      ],
+      "summary": "identified_conflict",
+      "unresolved": [],
+      "provenance": "synthetic_replay"
+    },
+    {
+      "nct_id": "DEMO-003",
+      "criteria": [
+        {
+          "id": "IN-1",
+          "kind": "inclusion",
+          "text": "Adults 18 years or older",
+          "source_text": "Adults 18 years or older"
+        },
+        {
+          "id": "IN-2",
+          "kind": "inclusion",
+          "text": "Stage III or IV non-small cell lung cancer",
+          "source_text": "Stage III or IV non-small cell lung cancer"
+        },
+        {
+          "id": "EX-1",
+          "kind": "exclusion",
+          "text": "Active autoimmune disease requiring immunosuppressive medications",
+          "source_text": "Active autoimmune disease requiring immunosuppressive medications"
+        }
+      ],
+      "assessments": [
+        {
+          "criterion_id": "IN-1",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "42-year-old"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "IN-2",
+          "status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Explicit synthetic profile evidence matches this criterion.",
+          "patient_evidence": [
+            "stage III non-small cell lung cancer"
+          ],
+          "question_for_doctor": null,
+          "verified_evidence": true
+        },
+        {
+          "criterion_id": "EX-1",
+          "status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Patient profile does not provide enough verified information to decide.",
+          "patient_evidence": [],
+          "question_for_doctor": "Can my care team confirm this eligibility requirement?",
+          "verified_evidence": true
+        }
+      ],
+      "skeptic": [
+        {
+          "criterion_id": "IN-1",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "IN-2",
+          "independent_status": "met",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        },
+        {
+          "criterion_id": "EX-1",
+          "independent_status": "unknown",
+          "exclusion_triggered": null,
+          "explanation": "Independent replay illustration; not an experimental measurement.",
+          "disagreement": false
+        }
+      ],
+      "summary": "needs_information",
+      "unresolved": [
+        "EX-1"
+      ],
+      "provenance": "synthetic_replay"
+    }
+  ],
+  "notice": "Every study and assessment in this replay is synthetic and illustrative; no real clinical trials or model performance claims."
+}

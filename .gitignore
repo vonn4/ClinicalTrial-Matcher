@@ -1,0 +1,23 @@
+# credentials and private data (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+node_modules/
+frontend/dist/
+coverage/
+*.egg-info/
+.DS_Store
+*.log
+# only derived private research artifacts; results need review before publishing
+evaluation/results/*
+!evaluation/results/.gitkeep
+# local-only test output
+*.sqlite
+*.db
