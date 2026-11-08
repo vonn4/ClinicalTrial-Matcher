@@ -1,16 +1,18 @@
-# ClinicalTrial Matcher — status (MVP 1.5-C)
+# ClinicalTrial Matcher — current implementation status
 
-**Development branch:** `feat/mvp-1.5-shared-reassessment`, based on `feat/mvp-1.5-trial-followups`.
+## Official ClinicalTrials.gov API integration (live registry)
 
-- [x] 1.5-A — guided baseline questionnaire, disease-specific branches, profile editing, explicit unknown/pending/not-tested states.
-- [x] 1.5-B — conservative criterion-to-fact map, one deduplicated question across multiple trials, source evidence, unmapped criteria warnings.
-- [x] 1.5-C — answers and corrections for shared questions, one canonical synthetic patient profile, rule-based re-evaluation against each linked trial criterion, answer-editing UI, criterion status-change feedback.
-- [ ] 1.5-D — automated browser E2E, usability/question-burden measurement, real registry validation and richer UX.
-- [ ] MVP 2/3 — empirically validated Gemini eligibility and independent skeptic agents.
-- [ ] TREC benchmark and prompt-injection experiments; no metrics may be fabricated.
+- **Implemented:** Official API v2 condition search and ID lookup from FastAPI; arbitrary real disease search labels through guided intake; official NCT IDs, recruitment status, eligibility descriptions, locations, URLs and update dates.
+- **Implemented:** public registry version/refresh check (`GET /api/v1/registry/status`), bounded 100-candidate BM25 results, and 10-minute in-memory cache of public studies.
+- **Implemented:** live follow-up questions and incremental deterministic partial reassessment use server-resolved public study criteria and official structured age restrictions. Unmapped criteria remain for expert review.
+- **Implemented:** offline mocked integration tests and explicit on-machine `python run_local.py --check-live` connectivity test.
+- **Validation limitation:** developer container cannot reach the live API network; GitHub CI tests are deterministic mock responses. Real endpoint tests must be executed in the user's connected local environment.
+- **Safety:** Synthetic patients only; query terms and NCT IDs go to official registry, not patient answers; no eligibility guarantees, no charges.
 
-**Safety and limitations:** Self-reported fictional data only, no medical advice, no confirmed eligibility, no real patient records. Deterministic reviews only support a small allowlist of criteria; unsupported requirements remain clinical review. The independent skeptic is not run in the rule-based workflow. Original fixed replay and optional live model mode remain separate. Nothing requires a paid API.
+## Milestones
 
-**Verification:** Local backend regression suite has 56 tests passing (including 10 added reassessment checks); launcher syntax compiled, frontend TS/TSX syntax parsed. GitHub CI must verify full TypeScript production build on this branch before merging.
-
-See `docs/MVP_1_5_IMPLEMENTATION.md` for technical scope, API contract and UAT.
+- 1.5-A Guided intake: complete.
+- 1.5-B Cross-trial follow-up planning: complete.
+- 1.5-C Shared answer reassessment: complete.
+- 1.6 Live registry integration: implemented; internet UAT required.
+- Next: 1.5-D / benchmark, security and usability validation; full live AI remains optional and separate.
