@@ -110,6 +110,42 @@ def verify_workflow(backend_url: str, frontend_url: str) -> None:
     print('PASS: React page, backend health, guided intake, shared questions, cross-trial answer updates, replay safety')
 
 
+def verify_live_registry(backend_url: str) -> None:
+    """Explicit opt-in internet test: real registry studies, fake patient only."""
+    status=request_json(f'{backend_url}/api/v1/registry/status', timeout=18)
+    if not status.get('connected') or not status.get('data_timestamp'):
+        raise RuntimeError('ClinicalTrials.gov version and refresh timestamp not verified')
+    fake_profile=request_json(f'{backend_url}/api/v1/intake/profile', {
+        'answers': {'condition': {'state':'answered','value':'sickle cell disease'},
+                    'age': {'state':'answered','value':'29'}},
+        'narrative':'Entirely fictional research example.', 'synthetic':True})
+    matches=request_json(f'{backend_url}/api/v1/trials/search', {
+        'profile':fake_profile,'mode':'live','limit':5}, timeout=35)
+    trials=matches.get('trials') or []
+    if not trials:
+        raise RuntimeError('Official API reachable but returned no recruiting sickle-cell studies; try a different condition')
+    for study in trials:
+        id=study.get('nct_id','')
+        if (study.get('source')!='clinicaltrials.gov' or len(id)!=11 or not id.startswith('NCT')
+            or study.get('url')!=f'https://clinicaltrials.gov/study/{id}'):
+            raise RuntimeError('Live response was not an authentic official NCT study record')
+    ids=[trial['nct_id'] for trial in trials[:3]]
+    plan=request_json(f'{backend_url}/api/v1/intake/followups', {
+        'profile':fake_profile,'mode':'live','trial_ids':ids},timeout=35)
+    if plan.get('reviewed_trial_ids')!=ids:
+        raise RuntimeError('Live criterion mapping did not review the requested official study identifiers')
+    refined=request_json(f'{backend_url}/api/v1/intake/reassess', {
+        'profile':fake_profile,'mode':'live','trial_ids':ids,'updates':{}},timeout=35)
+    if {a['nct_id'] for a in refined['assessments']}!=set(ids):
+        raise RuntimeError('Live deterministic reassessment did not return original study IDs')
+    if any(a['summary']=='potential_match' for a in refined['assessments']):
+        raise RuntimeError('Unvalidated live studies were incorrectly declared potentially eligible')
+    print('PASS: real ClinicalTrials.gov API, official NCT source URLs, live study follow-ups, safe partial reassessment')
+    print('Official API version:',status['api_version'],'data timestamp:',status['data_timestamp'])
+    print('Retrieved official NCT IDs:',', '.join(x['nct_id'] for x in trials))
+    print('Unmapped requirements:',len(plan.get('unmapped_criteria') or []),'— not inferred or auto-cleared')
+
+
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
     start = time.monotonic()
     while time.monotonic() - start < timeout:
@@ -172,6 +208,7 @@ def stop_processes(processes: list[subprocess.Popen]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description='Start and interaction-test ClinicalTrial Matcher')
     parser.add_argument('--check', action='store_true', help='Test existing frontend/backend including custom profile submissions')
+    parser.add_argument('--check-live', action='store_true', help='Test REAL ClinicalTrials.gov API and follow-up pipeline; requires internet and an already running backend')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
     parser.add_argument('--no-install', action='store_true', help='Fail rather than install missing free dependencies')
     parser.add_argument('--backend-port', type=int, default=8000)
@@ -183,6 +220,9 @@ def main() -> int:
     try:
         if args.check:
             verify_workflow(b, f)
+            return 0
+        if args.check_live:
+            verify_live_registry(b)
             return 0
         ensure_dependencies(args.no_install)
         env = {**os.environ, **load_env(ROOT / '.env')}
@@ -199,7 +239,8 @@ def main() -> int:
             f'\nREADY: {f}\n'
             'Guided intake: discover fictional trials, answer a shared follow-up and see linked criteria update.\n'
             'Quick description: edit fictional patient text or choose a scenario.\n'
-            'Live registry: select Live registry, enter fictional details and search public ClinicalTrials.gov.\n'
+            'Real studies: live ClinicalTrials.gov is now the default; use guided intake with a fictional patient.\n'
+            'Run `python run_local.py --check-live` from another terminal to verify the official API.\n'
             'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
             'Stop both services with Ctrl+C.\n'
         ), flush=True)

@@ -8,7 +8,7 @@ This module DOES NOT make eligibility judgments, persist answers, or invoke an L
 from __future__ import annotations
 import re
 from dataclasses import dataclass
-from .criteria import extract_criteria
+from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .schemas import (
     PatientProfile, TrialRecord, IntakeAnswer, FollowupQuestion, FollowupPlan,
     FollowupCriterionLink, UnmappedCriterion,
@@ -52,6 +52,8 @@ def map_criterion(text: str, kind: str) -> str | None:
         return 'age'
     if re.fullmatch(r'(?:non-small cell lung cancer diagnosis|confirmed sickle cell disease diagnosis|confirmed cystic fibrosis diagnosis)',t):
         return 'diagnosis_confirmation'
+    if re.fullmatch(r'minimum age: \d{1,3} years?(?:; maximum age: \d{1,3} years?)?|maximum age: \d{1,3} years?',t):
+        return 'age'
     if t=='histologically confirmed non-small cell lung cancer':
         return 'histology_confirmation'
     if re.fullmatch(r'stage (?:[ivx]+|\d+) or (?:[ivx]+|\d+) non-small cell lung cancer',t):
@@ -118,9 +120,9 @@ def build_followup_plan(profile: PatientProfile, trials: list[TrialRecord]) -> F
     unmapped: list[UnmappedCriterion] = []
     mapped=0
     for trial in trials:
-        criteria=extract_criteria(trial.eligibility_text)
+        criteria=criteria_for_trial(trial)
         for criterion in criteria:
-            if not criterion.source_text or criterion.source_text not in trial.eligibility_text:
+            if not verifies_original_criterion(trial, criterion):
                 unmapped.append(UnmappedCriterion(nct_id=trial.nct_id,criterion_id=criterion.id,
                     reason='Source evidence was not verified'))
                 continue

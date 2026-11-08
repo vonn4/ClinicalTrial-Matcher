@@ -6,7 +6,7 @@ clinical review. Source facts are self-reported synthetic examples.
 """
 from __future__ import annotations
 import re
-from .criteria import extract_criteria, validate_evidence
+from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .followups import DEFINITIONS, answer_state, map_criterion, validated_followup, build_followup_plan
 from .intake import profile_from_guided_or_text
 from .schemas import (
@@ -48,7 +48,7 @@ def explicit_answer(profile: PatientProfile, key: str) -> tuple[str | None, str 
 def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Criterion) -> CriterionAssessment:
     key=map_criterion(criterion.source_text,criterion.kind)
     question=DEFINITIONS[key].question if key else None
-    if not validate_evidence(criterion,trial.eligibility_text):
+    if not verifies_original_criterion(trial,criterion):
         return CriterionAssessment(criterion_id=criterion.id,status='clinical_review',
             explanation='The original requirement could not be source-verified.')
     if not key:
@@ -75,13 +75,22 @@ def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Crite
     explanation='The self-reported answer requires study-team interpretation; no automated clearance is given.'
     t=' '.join(criterion.source_text.lower().split())
     if key=='age':
-        nums=[int(n) for n in re.findall(r'\b\d{1,3}\b',t)]
         try: age=int(value)
         except ValueError: age=-1
-        if age>=0 and nums:
-            good=(age>=nums[0] and (len(nums)==1 or age<=nums[1]))
-            status='met' if good else 'not_met'
-            explanation=f'Reported age {age} {"meets" if good else "does not meet"} the stated age range in this fictional rule check.'
+        if criterion.id=='REG-AGE':
+            lower=re.search(r'minimum age:\s*(\d{1,3})\s+years?',t)
+            upper=re.search(r'maximum age:\s*(\d{1,3})\s+years?',t)
+            if age>=0 and (lower or upper):
+                good=((not lower or age>=int(lower.group(1))) and
+                      (not upper or age<=int(upper.group(1))))
+                status='met' if good else 'not_met'
+        else:
+            nums=[int(n) for n in re.findall(r'\b\d{1,3}\b',t)]
+            if age>=0 and nums:
+                good=(age>=nums[0] and (len(nums)==1 or age<=nums[1]))
+                status='met' if good else 'not_met'
+        if status in {'met','not_met'}:
+            explanation=f'Reported age {age} {"meets" if status=="met" else "does not meet"} this study age requirement (self-reported; not clinical screening).'
     elif key=='stage':
         good=value.lower().strip() in {'stage iii','stage iv'}
         status='met' if good else 'not_met'
@@ -121,7 +130,7 @@ def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Crite
 
 
 def review_trial(profile: PatientProfile,trial: TrialRecord) -> TrialAssessment:
-    criteria=extract_criteria(trial.eligibility_text)
+    criteria=criteria_for_trial(trial)
     reviews=[review_criterion(profile,trial,c) for c in criteria]
     conflicts=[c for c,a in zip(criteria,reviews) if
                (c.kind=='inclusion' and a.status=='not_met') or

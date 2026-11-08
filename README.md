@@ -20,6 +20,30 @@ validated AI review, or a completed skeptic run. Unsupported criteria remain
 for clinical review, and no paid API is required. See
 `docs/MVP_1_5_IMPLEMENTATION.md` for the API contract and test walkthrough.
 
+
+## Live ClinicalTrials.gov studies — MVP 1.6 (real study records)
+
+**This is the default mode in the dashboard.** The synthetic patient intake remains the same, but study records now come from the official public ClinicalTrials.gov API v2. No API key or AI model is required to search.
+
+1. Run `python run_local.py` and open `http://localhost:5173`.
+2. Verify **Real studies · ClinicalTrials.gov** is selected and the green connection notice reports an API version and registry refresh timestamp.
+3. Choose **Guided intake**. Type any real condition name, for example `sickle cell disease`, `cystic fibrosis`, `glioblastoma`, `multiple sclerosis`, or `breast cancer`. **Use fictional patient details only.** The condition need not be one of the three example shortcut buttons.
+4. Complete the intake; select **Search real trial registry**. The result cards should contain **NCT########** identifiers, `OFFICIAL STUDY` labels, original titles, recruitment status, public locations, and links to official studies (not `DEMO-###`).
+5. Trial-specific questions and the limited source-grounded partial rule review now use server-resolved official trial requirements. The official eligibility module's minimum/maximum age limits are retained and can trigger a shared age question. Unsupported complex requirements are explicitly left for clinical review.
+6. To run a repeatable **actual-internet integration test** in a *second terminal* while the app is running, execute:
+
+```powershell
+python run_local.py --check-live
+```
+
+This checks the official `/api/v2/version` response, searches recruiting sickle-cell studies, verifies returned NCT IDs/official source links, reads original criteria and submits an empty partial reassessment. **Unlike CI, it really needs internet access and may fail if the registry is unavailable.** It uses only fictional patient details.
+
+**Data boundary:** The registry receives only the disease search term and requested NCT IDs; the backend does not send the patient's intake or answers to ClinicalTrials.gov. The in-memory cache contains only public trial records for up to ten minutes. It is not a patient database, and no personal information should be entered.
+
+**Interpretation:** A search hit is not clinical eligibility. BM25 only ranks a bounded set of returned studies (at most 100 registry candidates); not all matching studies are guaranteed to be searched. Our deterministic follow-up engine recognizes only a small allowlist of exact criterion structures and official age limits. Unsupported or ambiguous requirements stay unresolved. Live Gemini/independent skeptic, when separately enabled, is not needed for this public registry workflow.
+
+**If live search fails:** Check `http://localhost:8000/api/v1/registry/status`, network access, and the terminal error. Switch to **Fictional sandbox** for offline use. A failed registry request must never silently substitute fictional studies.
+
 ## Current implementation status (MVP 1.5-C staged)
 
 

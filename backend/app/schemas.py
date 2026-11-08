@@ -78,6 +78,8 @@ class TrialRecord(BaseModel):
     url: str | None = None
     source: Literal['clinicaltrials.gov', 'synthetic_fixture']
     retrieved_at: str | None = None
+    minimum_age: str | None = None
+    maximum_age: str | None = None
     relevance_score: float = 0
     @field_validator('nct_id')
     @classmethod

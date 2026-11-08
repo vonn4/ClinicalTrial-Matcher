@@ -11,7 +11,7 @@ from .schemas import (Mode, ProfileRequest,PatientProfile,SearchRequest,SearchRe
     AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse,IntakeSubmission,FollowupRequest,FollowupPlan,ReassessmentRequest,ReassessmentResponse)
 from .profiling import deterministic_profile,llm_profile
 from .ranking import rank_trials
-from .clinicaltrials import search_trials,fetch_trial
+from .clinicaltrials import search_trials,fetch_trial,fetch_trials_by_ids,registry_status,validate_condition
 from .assessment import assess_live
 from .replay import fixture,sample_profile,replay_trials,replay_assessments
 from .sandbox import sandbox_search,is_original_sample,all_sandbox_trials
@@ -37,6 +37,16 @@ async def model_unavailable(_req:Request,exc:ModelUnavailable):
 def health():
     return {'status':'ok','version':'0.1.0','live_ai_enabled':enabled('ENABLE_LIVE_AI'),
             'mode_default':'replay','synthetic_only':True}
+
+
+@app.get('/api/v1/registry/status')
+async def official_registry_status():
+    """Actively test free official registry connectivity and data freshness."""
+    try:
+        return await registry_status()
+    except (httpx.HTTPError,ValueError) as exc:
+        logger.warning('ClinicalTrials.gov status unavailable: %s',type(exc).__name__)
+        raise HTTPException(503,'ClinicalTrials.gov is unreachable right now. Live study search requires internet access.') from exc
 
 @app.get('/api/v1/demo/cases')
 def demo_cases():
@@ -78,7 +88,9 @@ async def intake_followups(req: FollowupRequest):
         if any(not trial_id.startswith('NCT') for trial_id in req.trial_ids):
             raise HTTPException(422,'Live follow-ups require official NCT study IDs')
         try:
-            studies=await asyncio.gather(*(fetch_trial(trial_id) for trial_id in req.trial_ids))
+            studies=await fetch_trials_by_ids(req.trial_ids)
+        except ValueError as exc:
+            raise HTTPException(404,str(exc)) from exc
         except httpx.HTTPError as exc:
             logger.warning('Unable to fetch official requirements: %s',type(exc).__name__)
             raise HTTPException(502,'Official study requirements currently unavailable') from exc
@@ -98,8 +110,10 @@ async def intake_reassess(req: ReassessmentRequest):
         if any(not trial_id.startswith('NCT') for trial_id in req.trial_ids):
             raise HTTPException(422,'Live reassessment requires official NCT study IDs')
         try:
-            studies=await asyncio.gather(*(fetch_trial(trial_id) for trial_id in req.trial_ids))
-        except (httpx.HTTPError,ValueError) as exc:
+            studies=await fetch_trials_by_ids(req.trial_ids)
+        except ValueError as exc:
+            raise HTTPException(404,str(exc)) from exc
+        except httpx.HTTPError as exc:
             raise HTTPException(502,'Official study requirements unavailable') from exc
     try:
         return reassess(req.profile,studies,req.updates)
@@ -121,15 +135,22 @@ async def search(req:SearchRequest):
         profile=profile_from_guided_or_text(req.profile)
         trials=sandbox_search(profile,req.limit)
         return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='synthetic_sandbox_bm25')
-    if not req.profile.diagnosis:
-        raise HTTPException(422,'Review and enter a diagnosis before searching public studies')
+    # Rebuild canonical facts server-side; do not trust a client-modified diagnosis.
+    profile=profile_from_guided_or_text(req.profile)
+    if not profile.diagnosis:
+        raise HTTPException(422,'Enter a condition in guided intake or use a recognized condition in the quick description')
     try:
-        studies=await search_trials(req.profile.diagnosis,limit=min(max(req.limit*3,10),40))
-    except (httpx.HTTPError,ValueError) as e:
+        validate_condition(profile.diagnosis)
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from exc
+    try:
+        studies=await search_trials(profile.diagnosis,limit=min(max(req.limit*7,50),100))
+    except httpx.HTTPError as e:
         logger.warning('ClinicalTrials.gov request failed: %s',type(e).__name__)
-        raise HTTPException(502,'ClinicalTrials.gov is temporarily unavailable') from e
-    trials=rank_trials(req.profile,studies)[:req.limit]
-    return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='clinicaltrials_api_bm25')
+        raise HTTPException(502,'ClinicalTrials.gov is temporarily unavailable; check your internet connection') from e
+    trials=rank_trials(profile,studies)[:req.limit]
+    return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='clinicaltrials_api_v2_bm25',
+        disclaimer=f'Official ClinicalTrials.gov public data; {len(studies)} recruiting/not-yet-recruiting candidates examined. No eligibility is established.')
 
 @app.get('/api/v1/trials/{nct_id}',response_model=TrialRecord)
 async def get_trial(nct_id:str):
