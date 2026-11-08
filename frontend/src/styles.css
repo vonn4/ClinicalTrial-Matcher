@@ -91,3 +91,12 @@
 .followup-completed-item p {font-size:12px;color:#617488;margin-top:5px;}
 .followup-completed-item .followup-answer-form {grid-column:1 / -1;width:100%;}
 @media(max-width:750px){.followup-answer-form{grid-template-columns:1fr}.followup-answer-form button{grid-column:1}.followup-completed-item{grid-template-columns:1fr}.followup-completed-item .followup-answer-form{grid-column:1}}
+
+/* Live registry provenance is visually distinct from the fictional sandbox. */
+.registry-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border:1px solid #c8e5dc;background:#f0faf6;border-radius:11px;margin:0 0 16px;color:#2b6558;font-size:11px}
+.registry-banner strong{font-size:10px;letter-spacing:.7px}
+.registry-banner p{margin:5px 0 0;line-height:1.55;max-width:670px;color:#568778}
+.registry-meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px;font-size:10px;white-space:nowrap}
+.registry-ok{font-weight:800;color:#287451}.registry-warning{color:#bb6343;white-space:normal;max-width:290px;text-align:right}
+.study-source{margin-right:auto;margin-left:8px;font-size:8px;letter-spacing:.5px;font-weight:800;color:#257663;background:#e7f7f1;padding:4px 6px;border-radius:4px}
+@media(max-width:900px){.registry-banner{align-items:flex-start;flex-direction:column}.registry-meta{align-items:flex-start;white-space:normal}}
