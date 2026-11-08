@@ -29,3 +29,14 @@ export function getTrialFollowups(profile: PatientProfile, mode: Mode, trial_ids
 export function reassessTrials(profile:PatientProfile, mode:Mode, trial_ids:string[], updates:Record<string,IntakeAnswer>):Promise<ReassessmentResponse> {
   return post('/api/v1/intake/reassess',{profile,mode,trial_ids,updates});
 }
+
+/** Only official public-registry metadata; does not transmit patient details. */
+export async function checkLiveRegistry():Promise<{connected:boolean;provider:string;api_version:string;data_timestamp:string}> {
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  try {
+    const r=await fetch(`${API_BASE}/api/v1/registry/status`,{signal:controller.signal});
+    if(!r.ok)throw new Error('Official registry unavailable — check internet access or try the fictional sandbox.');
+    return await r.json();
+  }finally {clearTimeout(timeout);}
+}
