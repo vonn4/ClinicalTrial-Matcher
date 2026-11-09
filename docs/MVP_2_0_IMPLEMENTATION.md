@@ -1,3 +1,70 @@
+## Automatically executed five-agent workflow and local Gemini setup
+
+Every **Guided intake** or **Quick description** submission runs the five-stage
+Profile → Discovery → Eligibility Analyst → Independent Skeptic → Clarification
+workflow **once**. The old separate `Run five-agent workflow` button has been removed.
+The mode selection now appears **before** the patient intake.
+
+**Five agent roles are not five installed models.** The roles share a configurable
+Google Gemini provider and specialized prompts/tools. In tool-only mode all five
+role boundaries execute with **zero LLM calls**. Model-assisted mode makes
+conditional inference calls (up to 9 per full run) where needed. The execution
+trace reports *actual* calls, not assumed or simulated AI execution.
+
+### Enable model-assisted runs on a Windows development machine
+
+1. Use a Google AI Studio project with an applicable **free-tier quota and no
+   billing enabled**. Generate an API key; never paste it in chat, the frontend
+   token field, or GitHub.
+2. In the VS Code terminal, from the **repository root**:
+
+   ```powershell
+   Copy-Item .env.example .env
+   python -c "import secrets; print(secrets.token_urlsafe(24))"
+   ```
+
+   Copy the generated random team-access token privately. Open the root `.env`
+   file and set:
+
+   ```dotenv
+   ENABLE_LIVE_AI=true
+   GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
+   LIVE_AI_ACCESS_TOKEN=YOUR_RANDOM_TEAM_TOKEN
+   GEMINI_MODEL=gemini-2.5-flash
+   GEMINI_PROFILE_MODEL=gemini-2.5-flash-lite
+   MAX_AGENT_MODEL_CALLS_PER_HOUR=24
+   ```
+
+   The model IDs are **configurable defaults** and must be available to your
+   account. Gemini free-tier availability and quotas can change. The project
+   `.gitignore` excludes `.env`; do not commit it.
+3. Restart from the repository root:
+
+   ```powershell
+   python run_local.py
+   ```
+
+   In another VS Code terminal, run `python run_local.py --check-ai`.
+   This verifies only local configuration and model names, **not** an actual
+   Google API call.
+4. Refresh the dashboard. The **Analysis mode** panel should report
+   "Gemini configured". Select **Model-assisted five-agent workflow**, enter
+   only the **team access token** you created (not the API key), and submit
+   a **fictional** patient profile through the existing intake/search button.
+   The execution trace will show the actual model calls and which agents used
+   inference. It is normal for some roles to remain tool-only when no model
+   call is needed or supported by the available criteria.
+
+If the panel reports Gemini unavailable, inspect the exact missing setting
+and restart after editing `.env`. If you choose model-assisted mode but a
+provider call fails or a study's criteria exceed the supported model boundary,
+the workflow explicitly records tool-only fallback; it must not claim a
+successful independent AI review when none occurred. Model availability is
+not medical validation. Only fictional patient details may be entered.
+
+
+---
+
 ## Live-only frontend update
 
 The public application now has a single study source: **ClinicalTrials.gov API v2**. The fictional sandbox selector, example disease presets, bundled fake trial records, and pre-populated patient example are removed from the React frontend. The backend's explicit replay mode is retained solely to preserve offline regression tests and benchmark reproducibility. It is not a supported option on the public interface; API defaults are live, and no outage can quietly replace real records with fake ones. The patient profiles used for development and demo remain fictional. The launcher tests local contracts offline, while `--check-live` verifies real registry connectivity and the five-stage matching API. This section supersedes older documentation mentioning an interactive fictional sandbox.
