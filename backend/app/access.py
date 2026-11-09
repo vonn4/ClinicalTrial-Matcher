@@ -7,7 +7,7 @@ CALLS=deque()
 
 def require_live_ai(request:Request):
     if not enabled('ENABLE_LIVE_AI'):
-        raise HTTPException(503,'Live AI disabled. Use replay mode or enable on a trusted local backend.')
+        raise HTTPException(503,'Model-assisted analysis is disabled. Configure a free-tier key on the trusted local backend.')
     configured=os.getenv('LIVE_AI_ACCESS_TOKEN','')
     if len(configured)<16:
         raise HTTPException(503,'Live AI needs a strong server-side LIVE_AI_ACCESS_TOKEN before use.')

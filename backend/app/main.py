@@ -36,7 +36,7 @@ async def model_unavailable(_req:Request,exc:ModelUnavailable):
 @app.get('/health')
 def health():
     return {'status':'ok','version':'0.1.0','live_ai_enabled':enabled('ENABLE_LIVE_AI'),
-            'mode_default':'replay','synthetic_only':True}
+            'mode_default':'live','synthetic_only':True}
 
 
 @app.get('/api/v1/registry/status')
@@ -48,7 +48,7 @@ async def official_registry_status():
         logger.warning('ClinicalTrials.gov status unavailable: %s',type(exc).__name__)
         raise HTTPException(503,'ClinicalTrials.gov is unreachable right now. Live study search requires internet access.') from exc
 
-@app.get('/api/v1/demo/cases')
+@app.get('/api/v1/demo/cases', include_in_schema=False)  # legacy internal regression fixture only
 def demo_cases():
     f=fixture()
     return {'cases':[{'id':f['case_id'],'name':f['name'],'description':f['description']}],
@@ -123,7 +123,10 @@ async def intake_reassess(req: ReassessmentRequest):
 
 @app.post('/api/v1/profiles/parse',response_model=PatientProfile)
 async def parse_profile(req:ProfileRequest,request:Request):
-    if req.mode==Mode.live and enabled('ENABLE_LIVE_AI'):
+    # Public live-registry search must remain usable without AI credentials.
+    # An explicitly supplied team token opts into the legacy model profiler;
+    # normal quick descriptions use the deterministic parser.
+    if req.mode==Mode.live and enabled('ENABLE_LIVE_AI') and request.headers.get('X-Live-Access-Token'):
         require_live_ai(request)
         try:return await llm_profile(req.description)
         except ValueError as e:raise HTTPException(422,str(e)) from e
@@ -217,3 +220,7 @@ def monitor_snapshot():
 def evaluation_summary():
     return {'status':'not_measured','experiments':[],
             'message':'No benchmark or security experiments have been run. Do not interpret replay fixtures as measurements.'}
+
+# MVP 2.0 five-role orchestrated matching; existing v1 routes remain intact.
+from .agents.api import router as five_agent_router
+app.include_router(five_agent_router)

@@ -21,3 +21,18 @@ python evaluation/evaluate_retrieval.py --qrels path/to/qrels.csv --ranking path
 ```
 
 The script prints actual measured results and writes a machine-readable file. Results are intentionally not checked into the source repository without review.
+
+## MVP 2.0: five-agent ablation scorer
+
+The offline CLI `evaluation/evaluate_agent_ablations.py` consumes two **actual, separately prepared** CSVs and writes results with method comparisons; it does not create ground-truth labels or simulate agent outputs.
+
+- Labels: `case_id,nct_id,criterion_id,kind,gold_status`, where `kind` is inclusion/exclusion and statuses are met/not_met/unknown/clinical_review.
+- Predictions: `method,case_id,nct_id,criterion_id,status`; methods should include deterministic, analyst, analyst+skeptic, and full-five-agent where available.
+
+Example:
+
+```bash
+python evaluation/evaluate_agent_ablations.py --labels evaluation/data/labels.csv --predictions evaluation/data/predictions.csv --out evaluation/results/agent_ablation_results.json
+```
+
+Unreported predictions count as unknown rather than disappearing from denominators. Metrics include exact-status accuracy, decisive coverage, abstention, exclusion-trigger recall, unsafe exclusion clearances and a status confusion table. Report the labels' provenance: team-generated labels must not be described as clinical expert ground truth.
