@@ -11,56 +11,68 @@ role boundaries execute with **zero LLM calls**. Model-assisted mode makes
 conditional inference calls (up to 9 per full run) where needed. The execution
 trace reports *actual* calls, not assumed or simulated AI execution.
 
-### Enable model-assisted runs on a Windows development machine
+### Enable model-assisted runs locally (Windows / VS Code)
 
-1. Use a Google AI Studio project with an applicable **free-tier quota and no
-   billing enabled**. Generate an API key; never paste it in chat, the frontend
-   token field, or GitHub.
-2. In the VS Code terminal, from the **repository root**:
+**First, revoke the Gemini API key exposed in the screenshot and create a new one**
+in Google AI Studio. Do not paste the replacement into ChatGPT, GitHub,
+a terminal command argument, or the web frontend. Confirm the associated
+Google AI project has an eligible **free tier with billing disabled**;
+a local model-call cap is not itself a billing guarantee.
 
-   ```powershell
-   Copy-Item .env.example .env
-   python -c "import secrets; print(secrets.token_urlsafe(24))"
-   ```
+From your existing repository folder in VS Code:
 
-   Copy the generated random team-access token privately. Open the root `.env`
-   file and set:
+```powershell
+git pull
+python configure_local_ai.py
+```
 
-   ```dotenv
-   ENABLE_LIVE_AI=true
-   GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
-   LIVE_AI_ACCESS_TOKEN=YOUR_RANDOM_TEAM_TOKEN
-   GEMINI_MODEL=gemini-2.5-flash
-   GEMINI_PROFILE_MODEL=gemini-2.5-flash-lite
-   MAX_AGENT_MODEL_CALLS_PER_HOUR=24
-   ```
+The interactive wizard prompts for your **new API key with hidden input**,
+creates or updates the **git-ignored project-root \`.env\`**, sets
+\`ENABLE_LIVE_AI=true\`, retains compatible existing settings, and generates
+a separate secure team access token. It shows the **team token only** so you can
+enter that in the local dashboard. The Gemini key remains in the local backend
+file and is never shown in the browser. The wizard makes **no network calls**.
 
-   The model IDs are **configurable defaults** and must be available to your
-   account. Gemini free-tier availability and quotas can change. The project
-   `.gitignore` excludes `.env`; do not commit it.
-3. Restart from the repository root:
+You do **not** need to manually copy \`.env.example\` or choose five API keys.
+Five agent roles share the configured Gemini models and make conditional calls.
+The template \`.env.example\` retains \`ENABLE_LIVE_AI=false\` as a safe
+default; the wizard enables AI **only in your ignored local \`.env\`**.
 
-   ```powershell
-   python run_local.py
-   ```
+To inspect the local file without printing either credential:
 
-   In another VS Code terminal, run `python run_local.py --check-ai`.
-   This verifies only local configuration and model names, **not** an actual
-   Google API call.
-4. Refresh the dashboard. The **Analysis mode** panel should report
-   "Gemini configured". Select **Model-assisted five-agent workflow**, enter
-   only the **team access token** you created (not the API key), and submit
-   a **fictional** patient profile through the existing intake/search button.
-   The execution trace will show the actual model calls and which agents used
-   inference. It is normal for some roles to remain tool-only when no model
-   call is needed or supported by the available criteria.
+```powershell
+python configure_local_ai.py --status
+```
 
-If the panel reports Gemini unavailable, inspect the exact missing setting
-and restart after editing `.env`. If you choose model-assisted mode but a
-provider call fails or a study's criteria exceed the supported model boundary,
-the workflow explicitly records tool-only fallback; it must not claim a
-successful independent AI review when none occurred. Model availability is
-not medical validation. Only fictional patient details may be entered.
+Stop the existing app (\`Ctrl+C\`) and start it again:
+
+```powershell
+python run_local.py
+```
+
+Then, in a **second** VS Code terminal:
+
+```powershell
+python run_local.py --check-ai
+```
+
+The latter checks backend configuration **without invoking Gemini**.
+Finally, refresh \`http://localhost:5173/\`, select
+**Model-assisted five-agent workflow**, enter the **team access token** printed
+locally (not the Gemini API key), and submit a fictional patient profile.
+Only actual agent trace calls prove that the model service responded.
+
+Model IDs \`gemini-2.5-flash\` (analysis/skeptic) and
+\`gemini-2.5-flash-lite\` (profile) are current repository **defaults**, not
+a promise that your project can use them; you may edit them in your ignored
+\`.env\` after checking free-tier availability. Provider errors may cause a
+clearly labeled deterministic fallback; neither this wizard nor \`--check-ai\`
+verifies Google connectivity or quota.
+
+**Keep secrets local:** never commit \`.env\`, paste a key in screenshots, or
+enter real patient information. To change the team token too, rerun
+\`python configure_local_ai.py --rotate-team-token\` with a fresh/current private
+API key, then restart.
 
 ## Real-study-only interface (current branch)
 
@@ -80,7 +92,7 @@ The approved architecture now has five independently testable role boundaries: p
 
 ClinicalTrial Matcher explores how a controlled multi-agent retrieval-augmented system might help people discover clinical trials, examine inclusion and exclusion criteria individually, identify missing information, and prepare evidence-based questions for clinicians.
 
-> **Important:** Research/navigation prototype only. **Use synthetic patient descriptions exclusively.** It is not medical advice, clinical validation, or confirmation of clinical trial eligibility. Study teams make final screening decisions. The included replay examples and trial identifiers are **fictional**.
+> **Important:** Research/navigation prototype only. **Use synthetic patient descriptions exclusively.** It is not medical advice, clinical validation, or confirmation of clinical trial eligibility. Study teams make final screening decisions. Internal replay test fixtures are **fictional**, but the public dashboard uses only official registry study identifiers.
 
 ## MVP 1.5-C — shared questions and cross-trial reassessment (draft)
 
@@ -103,7 +115,7 @@ for clinical review, and no paid API is required. See
 
 1. Run `python run_local.py` and open `http://localhost:5173`.
 2. Verify **Real studies · ClinicalTrials.gov** is selected and the green connection notice reports an API version and registry refresh timestamp.
-3. Choose **Guided intake**. Type any real condition name, for example `sickle cell disease`, `cystic fibrosis`, `glioblastoma`, `multiple sclerosis`, or `breast cancer`. **Use fictional patient details only.** The condition need not be one of the three example shortcut buttons.
+3. Choose **Guided intake**. Type any real condition name, for example `sickle cell disease`, `cystic fibrosis`, `glioblastoma`, `multiple sclerosis`, or `breast cancer`. **Use fictional patient details only.** There are no preset disease shortcut buttons.
 4. Complete the intake; select **Search real trial registry**. The result cards should contain **NCT########** identifiers, `OFFICIAL STUDY` labels, original titles, recruitment status, public locations, and links to official studies (not `DEMO-###`).
 5. Trial-specific questions and the limited source-grounded partial rule review now use server-resolved official trial requirements. The official eligibility module's minimum/maximum age limits are retained and can trigger a shared age question. Unsupported complex requirements are explicitly left for clinical review.
 6. To run a repeatable **actual-internet integration test** in a *second terminal* while the app is running, execute:
@@ -118,7 +130,7 @@ This checks the official `/api/v2/version` response, searches recruiting sickle-
 
 **Interpretation:** A search hit is not clinical eligibility. BM25 only ranks a bounded set of returned studies (at most 100 registry candidates); not all matching studies are guaranteed to be searched. Our deterministic follow-up engine recognizes only a small allowlist of exact criterion structures and official age limits. Unsupported or ambiguous requirements stay unresolved. Live Gemini/independent skeptic, when separately enabled, is not needed for this public registry workflow.
 
-**If live search fails:** Check `http://localhost:8000/api/v1/registry/status`, network access, and the terminal error. Switch to **Fictional sandbox** for offline use. A failed registry request must never silently substitute fictional studies.
+**If live search fails:** Check `http://localhost:8000/api/v1/registry/status`, network access, and the terminal error. Do not switch to mock studies: the user interface is real-registry-only. Internal test fixtures remain available for reproducible regression tests, never as a live-search fallback.
 
 ## Current implementation status (MVP 1.5-C staged)
 
