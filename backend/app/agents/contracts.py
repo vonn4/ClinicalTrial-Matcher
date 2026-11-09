@@ -41,5 +41,6 @@ class AgentRunResponse(BaseModel):
     trace: list[AgentTrace]
     model_calls: int
     candidate_count: int
+    profile_concerns: list[str] = Field(default_factory=list, max_length=5)
     changed_criteria: list[CriterionDelta] = Field(default_factory=list)
     notice: str = 'Experimental research navigation using synthetic patient details; not clinical eligibility.'
