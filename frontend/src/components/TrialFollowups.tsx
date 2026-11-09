@@ -11,6 +11,7 @@ interface Props {
   changed: CriterionDelta[];
   onSelectTrial: (id: string) => void;
   onAnswer: (factKey:string,answer:IntakeAnswer)=>Promise<boolean>;
+  independentReviewCount?:number;
 }
 
 const STATE_NOTE: Record<string,string> = {
@@ -66,7 +67,7 @@ function AnswerEditor({question,saved,busy,onSave}:{question:FollowupQuestion,sa
   </div>;
 }
 
-export default function TrialFollowups({plan,loading,submitting,error,answers,changed,onSelectTrial,onAnswer}:Props) {
+export default function TrialFollowups({plan,loading,submitting,error,answers,changed,onSelectTrial,onAnswer,independentReviewCount=0}:Props) {
   const [expanded,setExpanded]=useState<string|null>(null);
   const [editing,setEditing]=useState<string|null>(null);
   const [showUnmapped,setShowUnmapped]=useState(false);
@@ -124,7 +125,7 @@ export default function TrialFollowups({plan,loading,submitting,error,answers,ch
         <button type="button" className="followup-reason-toggle" aria-expanded={showUnmapped} onClick={()=>setShowUnmapped(!showUnmapped)}><ShieldCheck size={14}/> Requirements needing human review ({plan.unmapped_criteria.length}) <ChevronDown size={14} className={showUnmapped?'rotate':''}/></button>
         {showUnmapped&&<div className="followup-source-list">{plan.unmapped_criteria.map((c,index)=><p key={`${c.nct_id}:${c.criterion_id}:${index}`}><b>{c.nct_id} · {c.criterion_id}</b> — {c.reason}</p>)}</div>}
       </div>}
-      <div className="followup-disclaimer"><Info size={16}/><span>Partial, deterministic checks only. Self-reported answers are not medical record verification; the independent AI skeptic was not run. Unknown and unsupported criteria never become automatic passes. Research prototype — synthetic patients only.</span></div>
+      <div className="followup-disclaimer"><Info size={16}/><span>{independentReviewCount>0?`Shared follow-up planning is deterministic and source-linked; ${independentReviewCount} trial(s) received independent AI skeptic review. Remaining criteria may be unreviewed.`:'Shared follow-up planning uses deterministic, source-grounded rules; independent AI skeptic review was not completed.'} Self-reported answers are not medical record verification. Unknown and unsupported criteria never become automatic passes. Research prototype — synthetic patients only.</span></div>
     </>}
   </section>;
 }
