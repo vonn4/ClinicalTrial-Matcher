@@ -8,11 +8,11 @@ from pydantic import ValidationError
 class ModelUnavailable(RuntimeError):pass
 
 async def generate_json(*,model: str,system: str,payload: dict) -> dict:
-    if os.getenv('ENABLE_LIVE_AI','').lower() not in {'1','true','yes'}:
+    if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'1','true','yes','on'}:
         raise ModelUnavailable('Live model inference is disabled by default; set ENABLE_LIVE_AI=true on a trusted backend')
     key=os.getenv('GEMINI_API_KEY','')
     if not key:
-        raise ModelUnavailable('GEMINI_API_KEY is not configured; use replay mode')
+        raise ModelUnavailable('GEMINI_API_KEY is not configured; add it to the project .env file')
     if not re.fullmatch(r'[a-zA-Z0-9._-]+',model):
         raise ValueError('Invalid model name')
     url=f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
