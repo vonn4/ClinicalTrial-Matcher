@@ -1,3 +1,11 @@
+## Real-study-only interface (current branch)
+
+The public React dashboard searches **official ClinicalTrials.gov API v2 studies only**. The fictional trial sandbox, prefilled lung-cancer patient, and disease shortcut buttons have been removed. Guided intake accepts any real disease or condition name; quick description starts blank. Study results must have official `NCT########` IDs and `clinicaltrials.gov` provenance. Registry errors do **not** fall back to simulated trials.
+
+**Keep the distinction clear:** Study records are real, but patient information entered into this research prototype must remain **fictional/synthetic**. The backend retains explicit replay fixtures only for offline regression tests and reproducible research comparisons; they are not presented or bundled in the user-facing frontend. Historical notes later in this README may refer to previous sandbox releases.
+
+Run `python run_local.py` to launch locally; run `python run_local.py --check-live` in another terminal to verify the actual ClinicalTrials.gov connection and five-stage tool-only workflow. The launcher's normal offline smoke check validates the app without pretending that registry connectivity was tested. Full model-assisted reasoning remains separately opted in.
+
 ## MVP 2.0 — Five-agent matching (review branch)
 
 The approved architecture now has five independently testable role boundaries: patient profiling, official trial discovery, eligibility analysis, independent skeptical review, and source-grounded clarification. The **normal guided intake** executes the five-role tool-only workflow at $0. Model-assisted inference is separately gated, bounded and honestly traced. See [implementation notes](docs/MVP_2_0_IMPLEMENTATION.md). **Not clinically validated; do not use real patient information.** Full benchmark, real-model and live-registry UAT remain release gates.
