@@ -6,6 +6,9 @@ import {offlineAnalysis,sampleDescription,syntheticPatient} from './data/fixture
 import {analyze,parseProfile,searchTrials,buildIntakeProfile,getTrialFollowups,reassessTrials,checkLiveRegistry} from './lib/api';
 import GuidedIntake from './components/GuidedIntake';
 import TrialFollowups from './components/TrialFollowups';
+import AgentWorkflow from './components/AgentWorkflow';
+import type {AgentResult,AgentSettings} from './lib/agentApi';
+import {runFiveAgents,clarifyFiveAgents} from './lib/agentApi';
 
 const STATUS_LABEL:Record<Summary,string>={potential_match:'Potential match',needs_information:'Needs more information',identified_conflict:'Eligibility conflict',clinical_review:'Clinical review required'};
 const SANDBOX_EXAMPLES=[
@@ -121,10 +124,20 @@ export default function App(){
   const [review,setReview]=useState<ReassessmentResponse|null>(null);
   const [changedCriteria,setChangedCriteria]=useState<CriterionDelta[]>([]);
   const [answerBusy,setAnswerBusy]=useState(false);
+  const [agentResult,setAgentResult]=useState<AgentResult|null>(null);
+  const [agentSettings,setAgentSettings]=useState<AgentSettings|null>(null);
   useEffect(()=>{
     let active=true;
     if(analysis.trials.length===0){setFollowupPlan(null);setReview(null);setFollowupBusy(false);setFollowupError('');return;}
     setFollowupPlan(null);setReview(null);setChangedCriteria([]);setFollowupError('');setFollowupBusy(true);
+    if(agentResult){
+      setReview({profile:agentResult.profile,assessments:agentResult.assessments,
+        followups:agentResult.followups,changed_criteria:agentResult.changed_criteria,notice:agentResult.notice});
+      setFollowupPlan(agentResult.followups);
+      setChangedCriteria(agentResult.changed_criteria);
+      setFollowupBusy(false);
+      return;
+    }
     const ids=analysis.trials.slice(0,8).map(t=>t.nct_id);
     // Preserve a completed opt-in LLM evaluation and the legacy fixed replay.
     // Guided cases get an initial partial deterministic review before follow-ups.
@@ -136,12 +149,22 @@ export default function App(){
     load.catch(err=>{if(active)setFollowupError(err instanceof Error?err.message:'Question planning unavailable');})
       .finally(()=>{if(active)setFollowupBusy(false);});
     return ()=>{active=false;};
-  },[analysis,intakeMode]);
+  },[analysis,intakeMode,agentResult]);
   async function answerFollowup(factKey:string,answer:IntakeAnswer):Promise<boolean>{
     if(answerBusy||analysis.trials.length===0)return false;
     setAnswerBusy(true);setFollowupError('');
     try{
       const current=review?.profile??analysis.profile;
+      if(agentResult && agentSettings){
+        const ids=agentResult.assessments.map(a=>a.nct_id);
+        const updated=await clarifyFiveAgents(current,analysis.mode,ids,{[factKey]:answer},agentSettings);
+        setAgentResult(updated);
+        setReview({profile:updated.profile,assessments:updated.assessments,followups:updated.followups,
+          changed_criteria:updated.changed_criteria,notice:updated.notice});
+        setFollowupPlan(updated.followups);setChangedCriteria(updated.changed_criteria);
+        setProfile(updated.profile);setConnection('Five agents reassessed updated facts');
+        return true;
+      }
       const updated=await reassessTrials(current,analysis.mode,analysis.trials.slice(0,8).map(t=>t.nct_id),{[factKey]:answer});
       setReview(updated);setFollowupPlan(updated.followups);setChangedCriteria(updated.changed_criteria);
       setProfile(updated.profile);setConnection('Shared facts reassessed');return true;
@@ -173,34 +196,35 @@ export default function App(){
   const conflict=displayedAssessments.filter(a=>a.summary==='identified_conflict').length;
   const counts=[{label:'Retrieved',value:analysis.trials.length},{label:'Reviewed',value:displayedAssessments.length},{label:'Potential',value:potentially}];
   function toggleSaved(id:string){setSaved(prev=>prev.includes(id)?prev.filter(i=>i!==id):[...prev,id]);}
-  function changeMode(next:Mode){setReview(null);setFollowupPlan(null);setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());
+  function changeMode(next:Mode){setAgentResult(null);setAgentSettings(null);setReview(null);setFollowupPlan(null);setMode(next);setError('');setText(sampleDescription);setProfile(syntheticPatient());
     setAnalysis(next==='replay'&&intakeMode==='quick'?offlineAnalysis:{...offlineAnalysis,mode:next,trials:[],assessments:[]});
     setSelected(next==='replay'&&intakeMode==='quick'?'DEMO-001':'');setLiveSearched(false);}
   function changeIntakeMode(next:'guided'|'quick'){
-    setReview(null);setFollowupPlan(null);setIntakeMode(next);setError('');setLiveSearched(false);
+    setAgentResult(null);setAgentSettings(null);setReview(null);setFollowupPlan(null);setIntakeMode(next);setError('');setLiveSearched(false);
     if(next==='quick'){setText(sampleDescription);setProfile(syntheticPatient());}
     setAnalysis(next==='quick'&&mode==='replay'?offlineAnalysis:{...offlineAnalysis,mode,trials:[],assessments:[]});
     setSelected(next==='quick'&&mode==='replay'?'DEMO-001':'');
   }
+  function finishAgentRun(result:AgentResult,settings:AgentSettings){
+    setAgentSettings(settings);setAgentResult(result);setProfile(result.profile);
+    setAnalysis({mode:result.mode,profile:result.profile,trials:result.trials,assessments:result.assessments,
+      timings_ms:{},disclaimer:result.notice});
+    setSelected(result.trials[0]?.nct_id||'');
+    setFollowupPlan(result.followups);setReview(null);setChangedCriteria([]);
+    setLiveSearched(result.mode==='live');setConnection('Five-role matching workflow complete');
+  }
   async function runGuidedSearch(submission:IntakeSubmission){
-    setBusy(true);setError('');setReview(null);setChangedCriteria([]);
+    setBusy(true);setError('');setAgentResult(null);setAgentSettings(null);setReview(null);setChangedCriteria([]);
     try{
       const built=await buildIntakeProfile(submission);
-      setProfile(built);
-      if(mode==='replay'){
-        const next=await analyze(built,'replay');
-        setAnalysis(next);setSelected(next.trials[0]?.nct_id||'');setConnection('Guided intake · synthetic trials');
-      }else{
-        const searched=await searchTrials(built,'live');
-        setAnalysis({mode:'live',profile:built,trials:searched.trials,assessments:[],timings_ms:{},
-          disclaimer:'Live trial discovery; full AI eligibility assessment not performed.'});
-        setSelected(searched.trials[0]?.nct_id||'');setLiveSearched(true);setConnection('Guided intake · live registry');
-      }
+      const settings:AgentSettings={depth:'tools',token:''};
+      const result=await runFiveAgents(built,mode,settings);
+      finishAgentRun(result,settings);
     }catch(e){setError(e instanceof Error?e.message:'Guided intake failed');}
     finally{setBusy(false);}
   }
   async function runSearch(){
-    setBusy(true);setError('');setReview(null);setChangedCriteria([]);
+    setBusy(true);setError('');setAgentResult(null);setAgentSettings(null);setReview(null);setChangedCriteria([]);
     try{
       const parsed=await parseProfile(text,mode,liveToken||undefined);setProfile(parsed);
       if(mode==='replay'){
@@ -232,6 +256,7 @@ export default function App(){
       <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':mode==='replay'?'Explore synthetic trials':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>}
       {error&&<div className="error-alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={15}/></button></div>}
       {mode==='live'&&liveSearched&&<div className="live-action"><Info size={17}/><div><strong>Live trial discovery completed.</strong><p>These are real public studies, not proof of eligibility. The system performs only bounded preliminary checks; complex requirements remain for clinical review. Full AI assessment is a separate opt-in.</p></div>{intakeMode==='quick' && !!liveToken.trim() && <button className="secondary-button" disabled={busy} onClick={runLiveAnalysis}>Run optional AI assessment</button>}</div>}
+      <AgentWorkflow mode={mode} profile={review?.profile??profile} result={agentResult} onCompleted={finishAgentRun}/>
       <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Studies reviewed" value={displayedAssessments.length} sub="Partial criterion checks; not clinical screening"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
       <div className="analytics-row"><div className="panel analytics-panel"><div className="panel-heading"><div><h3>Discovery funnel</h3><p>What the current pipeline processed</p></div><SlidersHorizontal size={17}/></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={counts} layout="vertical" margin={{top:5,right:24,left:0,bottom:0}}><CartesianGrid horizontal={false} stroke="#e8edf2"/><XAxis type="number" allowDecimals={false} tick={{fontSize:11,fill:'#718397'}} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="label" width={74} tick={{fontSize:11,fill:'#526579'}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{borderRadius:12,border:'1px solid #e3e9ee',fontSize:12}}/><Bar dataKey="value" barSize={17} radius={[0,6,6,0]}>{counts.map((_,i)=><Cell key={i} fill={['#355c8e','#3d988a','#88b9a8'][i]}/>)}</Bar></BarChart></ResponsiveContainer></div><div className="chart-caption">{mode==='replay'?'Fictional studies — illustrative counts':'Current live query counts, not a benchmark result'}</div></div>
       <div className="panel insights-panel"><div className="panel-heading"><div><h3>Assessment overview</h3><p>Conservative preliminary categories</p></div><Activity size={17}/></div><div className="insights-bars">{[{label:'Potential match',count:potentially,color:'#268a75'},{label:'Information needed',count:unresolved,color:'#d2a451'},{label:'Identified conflict',count:conflict,color:'#d47665'}].map(s=><div className="insight" key={s.label}><div className="insight-meta"><span>{s.label}</span><strong>{s.count}</strong></div><div className="track"><div style={{width:`${displayedAssessments.length?s.count/displayedAssessments.length*100:0}%`,background:s.color}}/></div></div>)}</div><div className="chart-caption"><Info size={13}/> Relevance is not eligibility. Unknown is not a pass.</div></div></div>
