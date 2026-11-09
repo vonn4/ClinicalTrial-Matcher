@@ -18,6 +18,7 @@ export interface AgentResult {
   followups:FollowupPlan;
   trace:AgentTrace[];
   candidate_count:number;
+  profile_concerns:string[];
   model_calls:number;
   changed_criteria:CriterionDelta[];
   notice:string;
