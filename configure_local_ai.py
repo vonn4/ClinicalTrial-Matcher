@@ -79,7 +79,7 @@ def write_private_env(path: Path, content: str) -> None:
     try:
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", newline="\n",
-            dir=path.parent, prefix=".env-", suffix=".tmp", delete=False
+            dir=path.parent, prefix=".env.", suffix=".tmp", delete=False
         ) as handle:
             temp_path = Path(handle.name)
             handle.write(content)
