@@ -18,7 +18,6 @@ SAFE_ALIASES = {
     'cystic fibrosis': ['CFTR-related cystic fibrosis'],
     'glioblastoma': ['glioblastoma multiforme'],
     'breast cancer': ['breast carcinoma'],
-    'multiple sclerosis': ['MS'],
 }
 
 async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_ids: list[str],
@@ -54,11 +53,17 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
         called = True
     queries = [condition] + suggestions
     # Independent public-record calls; the patient profile is NEVER sent upstream.
-    responses = await asyncio.gather(*(search_trials(q, limit=80) for q in queries))
+    responses = await asyncio.gather(*(search_trials(q, limit=80) for q in queries), return_exceptions=True)
+    if isinstance(responses[0], Exception):
+        raise responses[0]  # the primary official search is required
     dedup: dict[str, TrialRecord] = {}
+    failed_probes = 0
     for studies in responses:
+        if isinstance(studies, Exception):
+            failed_probes += 1
+            continue  # synonym failure cannot erase valid results from the primary query
         for study in studies:
             if study.source == 'clinicaltrials.gov':
                 dedup[study.nct_id] = study
     ranked = rank_trials(profile, list(dedup.values()))
-    return ranked[:count], {'candidate_count': len(ranked), 'queries': len(queries), 'model_invoked': called}
+    return ranked[:count], {'candidate_count': len(ranked), 'queries': len(queries), 'failed_probes': failed_probes, 'model_invoked': called}
