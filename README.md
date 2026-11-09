@@ -1,3 +1,10 @@
+## MVP 2.1 — five-agent integration hardening
+
+**Current testing branch:** \`feat/mvp-2.1-end-to-end-hardening\`, draft [PR #12](https://github.com/vonn4/ClinicalTrial-Matcher/pull/12).
+Use the [November 9, 2026 acceptance runbook](docs/2026-11-09_ACCEPTANCE_PLAN.md) to verify the entire pipeline.
+
+New in this branch: stale-server-aware \`python run_local.py --check-ai\`, an opt-in, **real** Gemini JSON probe (\`--probe-ai --confirm-free-tier\`), isolated model-failure fallbacks that cannot silently imply eligibility, and automated Chromium browser checks. Backend CI and browser mocks do **not** prove public-registry or provider availability; those must be tested on the developer's computer with fictional patients and a rotated private key.
+
 ## Automatically executed five-agent workflow and local Gemini setup
 
 Every **Guided intake** or **Quick description** submission runs the five-stage
