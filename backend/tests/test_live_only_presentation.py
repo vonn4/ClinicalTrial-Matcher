@@ -42,3 +42,22 @@ def test_public_quick_profile_works_without_ai_token_even_when_model_enabled(mon
         'description':'Fictional 31-year-old patient with sickle cell disease, prior treatment unknown.'})
     assert response.status_code==200,response.text
     assert response.json()['diagnosis']=='sickle cell disease'
+
+
+def test_five_agent_workflow_runs_on_search_without_redundant_play_button():
+    frontend = Path(__file__).resolve().parents[2] / 'frontend' / 'src'
+    app_src = (frontend / 'App.tsx').read_text(encoding='utf8')
+    trace_src = (frontend / 'components' / 'AgentWorkflow.tsx').read_text(encoding='utf8')
+    setup_src = (frontend / 'components' / 'AgentSetup.tsx').read_text(encoding='utf8')
+
+    assert 'Run five-agent workflow' not in trace_src
+    assert 'runFiveAgents(' not in trace_src
+    assert '<button' not in trace_src
+    assert 'Latest execution' in trace_src
+    assert app_src.count('const settings=selectedAgentSettings();') == 2
+    assert app_src.count('const result=await runFiveAgents(') == 2
+    assert '<AgentSetup depth={analysisDepth}' in app_src
+    assert '<AgentWorkflow result={agentResult}/>' in app_src
+    assert 'model_ready' in setup_src
+    assert 'onDepthChange' in setup_src
+    assert 'LIVE_AI_ACCESS_TOKEN' in setup_src
