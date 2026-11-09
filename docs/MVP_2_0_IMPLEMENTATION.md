@@ -1,3 +1,7 @@
+## Live-only frontend update
+
+The public application now has a single study source: **ClinicalTrials.gov API v2**. The fictional sandbox selector, example disease presets, bundled fake trial records, and pre-populated patient example are removed from the React frontend. The backend's explicit replay mode is retained solely to preserve offline regression tests and benchmark reproducibility. It is not a supported option on the public interface; API defaults are live, and no outage can quietly replace real records with fake ones. The patient profiles used for development and demo remain fictional. The launcher tests local contracts offline, while `--check-live` verifies real registry connectivity and the five-stage matching API. This section supersedes older documentation mentioning an interactive fictional sandbox.
+
 # MVP 2.0 — Five-agent matching implementation
 
 ## Scope and truthfulness
