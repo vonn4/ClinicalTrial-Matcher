@@ -176,3 +176,35 @@ def test_model_mode_missing_provider_key_returns_explicit_configuration_error(mo
         json={'mode':'replay','depth':'model','profile':patient(),'max_studies':1})
     assert response.status_code==503
     assert 'GEMINI_API_KEY' in response.json()['detail']
+
+
+def test_authorized_model_path_reports_actual_mocked_inference_calls(monkeypatch):
+    """Checks API plumbing and accounting; no real provider calls are made."""
+    monkeypatch.setenv('ENABLE_LIVE_AI','true')
+    monkeypatch.setenv('GEMINI_API_KEY','test-only-never-contact-provider')
+    token='local-team-access-token-strong-123'
+    monkeypatch.setenv('LIVE_AI_ACCESS_TOKEN',token)
+    async def fake_provider(*,model,system,payload):
+        criteria=payload.get('criteria')
+        if isinstance(criteria,list):
+            return {'assessments':[{'criterion_id':c['id'],'status':'unknown',
+                'explanation':'Not enough fictional patient evidence',
+                'patient_evidence':[],'question_for_doctor':'Ask the trial team'}
+                for c in criteria]}
+        if 'questions' in payload:
+            return {'ordered_fact_keys':[x['fact_key'] for x in payload['questions']]}
+        return {'concerns':[]}
+    monkeypatch.setattr('app.agents.budget.generate_json',fake_provider)
+    res=client.post('/api/v1/matching/analyze',
+        headers={'X-Live-Access-Token':token},
+        json={'mode':'replay','depth':'model','profile':patient(),'max_studies':1})
+    assert res.status_code==200,res.text
+    result=res.json()
+    assert result['model_calls']>=2
+    trace={x['agent']:x for x in result['trace']}
+    assert trace['analyst']['execution']=='model'
+    assert trace['skeptic']['execution']=='model'
+    assert trace['analyst']['model_calls']>0
+    assert trace['skeptic']['model_calls']>0
+    assert len(result['assessments'])==1
+    assert result['assessments'][0]['provenance']=='live_llm'
