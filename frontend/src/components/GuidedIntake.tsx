@@ -16,11 +16,6 @@ const STATUS_OPTIONS: {value: IntakeAnswer['state']|''; label:string}[] = [
   {value:'declined',label:'Prefer not to answer'}
 ];
 const TEST_RESULT_KEYS = new Set(['egfr_result','alk_result','cftr_result','her2_result','sickle_genotype']);
-const EXAMPLES = [
-  {label:'Lung cancer',value:'non-small cell lung cancer'},
-  {label:'Sickle cell',value:'sickle cell disease'},
-  {label:'Cystic fibrosis',value:'cystic fibrosis'}
-];
 function normalizedCondition(raw:string) {
   const condition=raw.trim().toLowerCase().replace(/\s+/g,' ');
   return condition==='nsclc'?'non-small cell lung cancer':condition==='sickle cell anemia'?'sickle cell disease':condition;
@@ -33,10 +28,9 @@ function statusLabel(answer: IntakeAnswer|undefined) {
 interface Props {
   onSearch: (submission: IntakeSubmission)=>Promise<void>;
   busy: boolean;
-  mode: 'replay'|'live';
 }
 
-export default function GuidedIntake({onSearch,busy,mode}:Props) {
+export default function GuidedIntake({onSearch,busy}:Props) {
   const [questions,setQuestions]=useState<IntakeQuestion[]>([]);
   const [loadError,setLoadError]=useState('');
   const [answers,setAnswers]=useState<Record<string,IntakeAnswer>>({});
@@ -88,8 +82,7 @@ export default function GuidedIntake({onSearch,busy,mode}:Props) {
       {isCondition?<>
         <input id="intake-condition" value={answer?.value||''} maxLength={120} placeholder={question.placeholder}
           onChange={e=>setCondition(e.target.value)} />
-        <div className="intake-suggestions">{EXAMPLES.map(ex=><button type="button" key={ex.label}
-          className={condition===ex.value?'chosen':''} onClick={()=>setCondition(ex.value)}>{ex.label}</button>)}</div>
+<div className="intake-help">Enter any real diagnosis or disease name. The registry will search for actual studies; patient information must remain fictional.</div>
       </>:<>
         <select aria-label={`${question.label} — answer status`} value={answer?.state||''} onChange={e=>setStatus(question.id,e.target.value as IntakeAnswer['state']|'')}>
           {STATUS_OPTIONS.filter(x=>TEST_RESULT_KEYS.has(question.id)||!['pending','not_tested'].includes(x.value)).map(x=><option value={x.value} key={x.value}>{x.label}</option>)}
@@ -148,7 +141,7 @@ export default function GuidedIntake({onSearch,busy,mode}:Props) {
             onClick={()=>setStep(x=>x+1)}>Continue <ArrowRight size={15}/></button>
           :<button type="button" className="primary-button" disabled={busy||!validCondition||invalidAnswer}
             onClick={()=>void submit()}>{busy?<Loader2 size={16} className="spin"/>:<ArrowRight size={16}/>}
-              {mode==='replay'?'Discover fictional trials':'Search real trial registry'}</button>}
+              Search real ClinicalTrials.gov studies</button>}
         </div>
       </div>
     </>}
