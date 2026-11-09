@@ -7,7 +7,8 @@ import {parseProfile,buildIntakeProfile,getTrialFollowups,reassessTrials,checkLi
 import GuidedIntake from './components/GuidedIntake';
 import TrialFollowups from './components/TrialFollowups';
 import AgentWorkflow from './components/AgentWorkflow';
-import type {AgentResult,AgentSettings} from './lib/agentApi';
+import AgentSetup from './components/AgentSetup';
+import type {AgentDepth,AgentResult,AgentSettings} from './lib/agentApi';
 import {runFiveAgents,clarifyFiveAgents} from './lib/agentApi';
 
 const STATUS_LABEL:Record<Summary,string>={potential_match:'Potential match',needs_information:'Needs more information',identified_conflict:'Eligibility conflict',clinical_review:'Clinical review required'};
@@ -130,6 +131,8 @@ export default function App(){
   const [review,setReview]=useState<ReassessmentResponse|null>(null);
   const [changedCriteria,setChangedCriteria]=useState<CriterionDelta[]>([]);
   const [answerBusy,setAnswerBusy]=useState(false);
+  const [analysisDepth,setAnalysisDepth]=useState<AgentDepth>('tools');
+  const [teamToken,setTeamToken]=useState('');
   const [agentResult,setAgentResult]=useState<AgentResult|null>(null);
   const [agentSettings,setAgentSettings]=useState<AgentSettings|null>(null);
   useEffect(()=>{
@@ -207,6 +210,12 @@ export default function App(){
     setIntakeMode(next);setError('');setLiveSearched(false);
     setText('');setProfile(emptyPatient());setAnalysis(emptyAnalysis());setSelected('');
   }
+  function selectedAgentSettings():AgentSettings{
+    if(analysisDepth==='model'&&!teamToken.trim()){
+      throw new Error('Enter your local team access token before selecting model-assisted analysis.');
+    }
+    return {depth:analysisDepth,token:analysisDepth==='model'?teamToken:''};
+  }
   function finishAgentRun(result:AgentResult,settings:AgentSettings){
     if(result.mode!=='live')throw new Error('Only official live studies are supported in the dashboard.');
     requireOfficialStudies(result.trials);
@@ -221,7 +230,7 @@ export default function App(){
     setBusy(true);setError('');setAgentResult(null);setAgentSettings(null);setReview(null);setChangedCriteria([]);
     try{
       const built=await buildIntakeProfile(submission);
-      const settings:AgentSettings={depth:'tools',token:''};
+      const settings=selectedAgentSettings();
       const result=await runFiveAgents(built,mode,settings);
       finishAgentRun(result,settings);
     }catch(e){setError(e instanceof Error?e.message:'Guided intake failed');}
@@ -234,7 +243,7 @@ export default function App(){
     try{
       const parsed=await parseProfile(text,'live');
       if(!parsed.diagnosis)throw new Error('The condition could not be identified. Use Guided intake to enter the exact condition.');
-      const settings:AgentSettings={depth:'tools',token:''};
+      const settings=selectedAgentSettings();
       const result=await runFiveAgents(parsed,'live',settings);
       finishAgentRun(result,settings);
     }catch(e){setError(e instanceof Error?e.message:'Official registry search failed');}
@@ -244,6 +253,8 @@ export default function App(){
     <div className="safety-banner"><div><ShieldCheck size={17}/><strong>Research demonstration</strong><span>•</span> Synthetic patient data only. No medical advice or eligibility determination.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
     {page==='discover'&&<><section className="intro-heading"><div><div className="section-eyebrow"><Sparkles size={15}/> AI-ASSISTED DISCOVERY</div><h2>Start with a patient story.</h2><p>We'll find relevant studies and show exactly what is known, uncertain, or conflicting.</p></div><span className="synthetic-tag">REAL REGISTERED STUDIES</span></section>
       {mode==='live'&&<div className="registry-banner" role="status"><div><strong>OFFICIAL LIVE STUDIES · FREE PUBLIC DATA</strong><p>Search real studies for any condition, including rare diseases. An AI key is not required for study discovery.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
+      <AgentSetup depth={analysisDepth} onDepthChange={setAnalysisDepth}
+        token={teamToken} onTokenChange={setTeamToken} disabled={busy||answerBusy}/>
       <div className="intake-method-switch" role="group" aria-label="Profile intake method">
         <div><strong>How would you like to build the profile?</strong><p>Guided questions help capture important facts without requiring medical-writing expertise.</p></div>
         <div className="intake-method-buttons">
@@ -262,7 +273,7 @@ export default function App(){
       {liveSearched&&<div className="live-action"><Info size={17}/><div><strong>Official study discovery completed.</strong>
          <p>These are registered studies, not proof of eligibility. Complex criteria require clinical review. Model-assisted agent reasoning is available separately with team opt-in.</p>
        </div></div>}
-       <AgentWorkflow mode={mode} profile={review?.profile??profile} result={agentResult} onCompleted={finishAgentRun}/>
+       <AgentWorkflow result={agentResult}/>
       <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Studies reviewed" value={displayedAssessments.length} sub="Partial criterion checks; not clinical screening"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
       <div className="analytics-row"><div className="panel analytics-panel"><div className="panel-heading"><div><h3>Discovery funnel</h3><p>What the current pipeline processed</p></div><SlidersHorizontal size={17}/></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={counts} layout="vertical" margin={{top:5,right:24,left:0,bottom:0}}><CartesianGrid horizontal={false} stroke="#e8edf2"/><XAxis type="number" allowDecimals={false} tick={{fontSize:11,fill:'#718397'}} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="label" width={74} tick={{fontSize:11,fill:'#526579'}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{borderRadius:12,border:'1px solid #e3e9ee',fontSize:12}}/><Bar dataKey="value" barSize={17} radius={[0,6,6,0]}>{counts.map((_,i)=><Cell key={i} fill={['#355c8e','#3d988a','#88b9a8'][i]}/>)}</Bar></BarChart></ResponsiveContainer></div><div className="chart-caption">Current registry query counts, not a benchmark result</div></div>
       <div className="panel insights-panel"><div className="panel-heading"><div><h3>Assessment overview</h3><p>Conservative preliminary categories</p></div><Activity size={17}/></div><div className="insights-bars">{[{label:'Potential match',count:potentially,color:'#268a75'},{label:'Information needed',count:unresolved,color:'#d2a451'},{label:'Identified conflict',count:conflict,color:'#d47665'}].map(s=><div className="insight" key={s.label}><div className="insight-meta"><span>{s.label}</span><strong>{s.count}</strong></div><div className="track"><div style={{width:`${displayedAssessments.length?s.count/displayedAssessments.length*100:0}%`,background:s.color}}/></div></div>)}</div><div className="chart-caption"><Info size={13}/> Relevance is not eligibility. Unknown is not a pass.</div></div></div>
