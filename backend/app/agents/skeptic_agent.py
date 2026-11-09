@@ -11,18 +11,28 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
     reconciled: list[TrialAssessment] = []
     checked = 0
     disputes = 0
+    failed = 0
     for trial in trials:
         current = by_id[trial.nct_id]
         # Model skeptic sees original facts+requirements ONLY. Primary results
         # are used after the independent call for comparison.
         independently = None
         if model and current.provenance == 'live_llm':
-            independently = await model_judgment(profile, trial, budget, skeptic=True)
+            try:
+                independently = await model_judgment(profile, trial, budget, skeptic=True)
+            except Exception:
+                # Do not erase earlier completed independent reviews. A missing
+                # skeptic response is not equivalent to agreement with the analyst.
+                failed += 1
         if independently is None:
             # A deterministic source-integrity audit is NOT represented as an
-            # independent LLM skeptical judgment.
+            # independent LLM skeptical judgment. Never clear a model-based study
+            # just because the skeptic request was skipped, failed or exhausted.
             evidence_ok = all(verifies_original_criterion(trial, c) for c in criteria_for_trial(trial))
             result = current.model_copy(deep=True)
+            if current.provenance == 'live_llm':
+                result.summary = 'clinical_review'
+                result.unresolved.append('Independent AI skeptic review not completed; cannot confirm preliminary match')
             if not evidence_ok:
                 result.summary = 'clinical_review'
                 result.unresolved.append('Source-integrity check failed')
@@ -46,4 +56,4 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
         reconciled.append(result)
         checked += 1
     return reconciled, {'model_invoked': checked > 0, 'independent_trials': checked,
-                        'disagreements': disputes, 'source_verified_trials': len(trials)}
+                        'model_failures': failed, 'disagreements': disputes, 'source_verified_trials': len(trials)}
