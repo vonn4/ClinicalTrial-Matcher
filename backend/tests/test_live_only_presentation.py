@@ -33,3 +33,12 @@ def test_client_has_no_mock_trial_entries_or_prefilled_patient():
     assert not (frontend / 'data' / 'fixture.ts').exists()
     assert not (frontend / 'data' / 'replay.json').exists()
     assert 'requireOfficialStudies(result.trials)' in app_src
+
+def test_public_quick_profile_works_without_ai_token_even_when_model_enabled(monkeypatch):
+    monkeypatch.setenv('ENABLE_LIVE_AI', 'true')
+    client=TestClient(app)
+    response=client.post('/api/v1/profiles/parse',json={
+        'mode':'live',
+        'description':'Fictional 31-year-old patient with sickle cell disease, prior treatment unknown.'})
+    assert response.status_code==200,response.text
+    assert response.json()['diagnosis']=='sickle cell disease'
