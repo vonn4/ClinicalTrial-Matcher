@@ -107,20 +107,87 @@ def verify_live_registry(backend_url: str) -> None:
 
 
 def verify_model_readiness(backend_url: str) -> None:
-    """Inspect configuration only; do NOT send a paid or free-tier inference request."""
-    caps=request_json(f'{backend_url}/api/v1/matching/capabilities')
-    roles=caps.get('agent_roles',[])
-    print('Agent roles:',', '.join(roles))
-    print('Provider:',caps.get('model_provider','unconfigured'))
-    if not caps.get('model_ready'):
-        raise RuntimeError('Gemini not configured on this backend: '+
-                           str(caps.get('model_readiness_message','unknown reason'))+
-                           '. Edit the project .env file, restart python run_local.py and retry.')
-    print('READY: Gemini configuration found on backend.')
-    print('Profile model:',caps.get('profile_model'))
-    print('Analysis/skeptic model:',caps.get('analysis_model'))
-    print('To verify ACTUAL inference, select Model-assisted analysis before searching a fictional profile.')
-    print('This check performs zero inference calls and does not validate provider quota.')
+    """Compare LOCAL ignored .env with RUNNING backend, without disclosing keys."""
+    local = load_env(ROOT / '.env')
+    local_enabled = local.get('ENABLE_LIVE_AI', '').strip().lower() in {'true', '1', 'yes', 'on'}
+    local_key = len(local.get('GEMINI_API_KEY', '').strip()) >= 20
+    local_team = len(local.get('LIVE_AI_ACCESS_TOKEN', '').strip()) >= 16
+    print('Project root:', ROOT)
+    print('Local ignored .env exists:', (ROOT / '.env').exists())
+    print('Local AI enabled:', local_enabled)
+    print('Local Gemini key present:', local_key)
+    print('Local team access token present:', local_team)
+    try:
+        caps = request_json(f'{backend_url}/api/v1/matching/capabilities', timeout=5)
+    except (URLError, HTTPError, TimeoutError, ConnectionError, OSError) as exc:
+        raise RuntimeError('No matching backend was reachable on '+backend_url+
+            '. Run python run_local.py in the first terminal, then retry --check-ai.') from exc
+    roles = caps.get('agent_roles', [])
+    print('Agent roles:', ', '.join(roles))
+    print('Provider:', caps.get('model_provider', 'unconfigured'))
+    server_ready = bool(caps.get('model_ready'))
+    if local_enabled and local_key and local_team and not server_ready:
+        raise RuntimeError(
+            'STALE BACKEND CONFIGURATION: the local .env is enabled but the RUNNING server reports '
+            + str(caps.get('model_readiness_message', 'Gemini disabled'))
+            + '. Stop python run_local.py in the ORIGINAL server terminal (Ctrl+C), '
+            'check that port 8000 is free, restart python run_local.py, then retry --check-ai. '
+            'In Windows PowerShell, inspect the listener with: '
+            'Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object OwningProcess'
+        )
+    if not (local_enabled and local_key and local_team):
+        raise RuntimeError(
+            'LOCAL CONFIGURATION INCOMPLETE: run python configure_local_ai.py '
+            'with a replacement Gemini key, then restart the server.')
+    if not server_ready:
+        raise RuntimeError('Backend Gemini not ready: '+
+                           str(caps.get('model_readiness_message', 'unknown reason')))
+    print('READY: local .env and running backend both report Gemini configured.')
+    print('Profile model:', caps.get('profile_model'))
+    print('Analysis/skeptic model:', caps.get('analysis_model'))
+    print('This is a CONFIGURATION check, not confirmation that Google inference works.')
+    print('For an explicit provider test after verifying free-tier billing: '
+          'python run_local.py --probe-ai --confirm-free-tier')
+
+
+def probe_provider_models() -> None:
+    """Deliberate real Gemini smoke test on NON-PATIENT synthetic JSON, never credentials."""
+    import asyncio
+    env = load_env(ROOT / '.env')
+    if env.get('ENABLE_LIVE_AI', '').strip().lower() not in {'true', '1', 'yes', 'on'}:
+        raise RuntimeError('Local .env has ENABLE_LIVE_AI disabled; run configure_local_ai.py')
+    if not env.get('GEMINI_API_KEY', '').strip():
+        raise RuntimeError('Missing local Gemini API key; run configure_local_ai.py')
+    # Load only into this local process. Never print the API key or team token.
+    os.environ.update(env)
+    sys.path.insert(0, str(BACKEND))
+    from app.agents.budget import AgentBudget
+    from app.settings import GEMINI_MODEL, GEMINI_PROFILE_MODEL
+    budget = AgentBudget(maximum=2)
+
+    async def check():
+        unique_models = list(dict.fromkeys((GEMINI_PROFILE_MODEL, GEMINI_MODEL)))
+        for model in unique_models:
+            try:
+                response = await budget.generate(
+                    model=model,
+                    system='Connectivity test only. Return exactly a JSON object with ok set to true.',
+                    payload={'purpose': 'health check', 'synthetic': True})
+                if response.get('ok') is not True:
+                    raise RuntimeError('Provider returned JSON but not the requested test schema.')
+            except Exception as exc:
+                # httpx can include sensitive request details in its exception;
+                # report only a small safe class and HTTP status, not raw body/URL.
+                status = getattr(getattr(exc, 'response', None), 'status_code', None)
+                raise RuntimeError(
+                    f'Gemini probe failed for model {model} ({type(exc).__name__}'
+                    + (f', HTTP {status}' if status else '') +
+                    '). Check model availability, free-tier quota, key validity and internet access.'
+                ) from None
+            print('PASS: real Gemini JSON response from', model)
+        print('PASS: provider connectivity confirmed; this did not test the five-agent workflow.')
+
+    asyncio.run(check())
 
 
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
@@ -187,6 +254,8 @@ def main() -> int:
     parser.add_argument('--check', action='store_true', help='Test existing frontend/backend including custom profile submissions')
     parser.add_argument('--check-live', action='store_true', help='Test REAL ClinicalTrials.gov API and follow-up pipeline; requires internet and an already running backend')
     parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking Gemini (backend must be running)')
+    parser.add_argument('--probe-ai', action='store_true', help='OPT-IN: call real Gemini model(s) with a non-patient JSON probe')
+    parser.add_argument('--confirm-free-tier', action='store_true', help='Confirm that YOU verified the Google project has an eligible free tier with billing disabled')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
     parser.add_argument('--no-install', action='store_true', help='Fail rather than install missing free dependencies')
     parser.add_argument('--backend-port', type=int, default=8000)
@@ -204,6 +273,11 @@ def main() -> int:
             return 0
         if args.check_ai:
             verify_model_readiness(b)
+            return 0
+        if args.probe_ai:
+            if not args.confirm_free_tier:
+                raise RuntimeError('Real Gemini calls are disabled unless you explicitly use --confirm-free-tier after verifying billing is disabled.')
+            probe_provider_models()
             return 0
         ensure_dependencies(args.no_install)
         env = {**os.environ, **load_env(ROOT / '.env')}
