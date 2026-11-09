@@ -1,3 +1,10 @@
+## Current user-facing workflow: live registry only
+
+- Removed fictional trial mode switch, preset disease buttons, seeded synthetic study cards, and frontend replay fixtures. A user enters any genuine disease name and fictional patient details; all displayed studies must originate from official ClinicalTrials.gov records.
+- Unspecified API search/assessment modes now default to `live`, never implicit replay. A registry failure surfaces as an error and never substitutes synthetic studies.
+- Backend replay fixtures remain available **only for explicit internal regression experiments**; legacy test endpoints are hidden from API documentation. Synthetic patient profiles remain mandatory for privacy and safe research use.
+- Startup smoke tests verify local API/UI contracts; `python run_local.py --check-live` requires internet and tests the real registry plus five-stage matching.
+
 ## MVP 2.0 five-agent core — draft PR #11 (review branch)
 
 - **Implemented in `feat/mvp-2.0-five-agent-core`:** all five roles are executable from the guided-intake workflow: Profile, Discovery, Analyst, blinded Skeptic, Clarification. Tool-only mode uses no LLM and is clearly labeled; separate model-assisted mode requires team authorization and a verified free-tier key.
