@@ -217,3 +217,7 @@ def monitor_snapshot():
 def evaluation_summary():
     return {'status':'not_measured','experiments':[],
             'message':'No benchmark or security experiments have been run. Do not interpret replay fixtures as measurements.'}
+
+# MVP 2.0 five-role orchestrated matching; existing v1 routes remain intact.
+from .agents.api import router as five_agent_router
+app.include_router(five_agent_router)
