@@ -38,3 +38,21 @@ jobs:
       - name: Typecheck and build
         working-directory: frontend
         run: npm run build
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium for browser smoke tests
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Exercise real React UI against controlled API responses
+        working-directory: frontend
+        run: npm run test:e2e

@@ -57,7 +57,8 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
             selected_ids=request.study_ids,model=False,budget=budget)
         fallback=True
     trace.append(event('discovery','tools' if fallback or not meta['model_invoked'] else 'model',
-        'Candidate studies resolved from the requested source; search probes are not additional diagnoses.',
+        'Candidate studies resolved from the requested source; search probes are not additional diagnoses.'+
+        (' Optional model query planning failed; used bounded official registry tools.' if meta.get('model_fallback') else ''),
         t,calls,budget,meta))
 
     # Broad candidate display, but no more than three agent-reviewed studies.
@@ -102,10 +103,22 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
 
     profile_concerns = [v for v in profile_meta_concerns if isinstance(v,str) and v.strip()][:5]
     agent_completed = sum(1 for stage in trace if stage.execution=='model')
+    warnings: list[str] = []
+    for stage in trace:
+        if stage.details.get('model_fallback'):
+            warnings.append(stage.agent + ': optional model step failed; source-grounded tools used')
+        if stage.details.get('model_failures', 0):
+            warnings.append(stage.agent + ': ' + str(stage.details['model_failures']) +
+                            ' model review(s) failed; no missing reviews were treated as passes')
+        if stage.details.get('criteria_limit_skips', 0):
+            warnings.append(stage.agent + ': ' + str(stage.details['criteria_limit_skips']) +
+                            ' study/studies exceeded bounded model criterion coverage')
+    caveat = (' Partial-model limitations: ' + '; '.join(warnings) + '.' if warnings else '')
     return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=reviewed,
         followups=followups,trace=trace,model_calls=budget.calls,
         candidate_count=int(trace[1].details.get('candidate_count',len(studies))),
         profile_concerns=profile_concerns,
         notice=(f'Five agent roles executed; {agent_completed} used model inference, '
-                f'{5-agent_completed} used controlled tools. This is preliminary research navigation, '
+                f'{5-agent_completed} used controlled tools. {budget.calls} model requests attempted.'
+                + caveat + ' This is preliminary research navigation, '
                 'not clinical eligibility. All patients must be fictional.'))

@@ -1,3 +1,15 @@
+## MVP 2.1 — audit and end-to-end verification (PR #12)
+
+**Active review branch:** \`feat/mvp-2.1-end-to-end-hardening\` (based on 2.0; neither this nor earlier PRs are merged to \`main\`).
+
+- **Fixed:** stale backend detection in \`python run_local.py --check-ai\`; it compares the ignored project-root \`.env\` with the running server and explains how to restart the old process.
+- **Added:** optional \`--probe-ai --confirm-free-tier\` for actual Gemini JSON connectivity with **non-patient data only**; requires explicit confirmation of free-tier billing status and makes real quota-consuming requests.
+- **Fixed:** independent official-registry discovery survives failed *optional model* synonym selection (without inventing studies); individual Analyst/Skeptic provider failures preserve other successful trial work while marking missing verification and criterion coverage as unresolved.
+- **Fixed:** per-trial dashboard/clarification claims now reflect actual independent reviews and optional AI-based question ordering.
+- **Added:** backend fault-injection tests, local launcher/security tests, and Chromium Playwright UI integration tests for automatic five-agent execution and correct upfront model selection.
+- **Audit guide:** [November 9, 2026 acceptance plan](docs/2026-11-09_ACCEPTANCE_PLAN.md). CI model/provider calls are **mocked**; only the developer's configured Windows machine can certify actual registry connectivity, Gemini inference and live browser interactions.
+- **Security:** Revoke the Gemini API key previously exposed in a screenshot; rotate the team access token previously pasted in chat. Do not commit \`.env\` or share secrets.
+
 ## Current user-facing workflow: live registry only
 
 - Removed fictional trial mode switch, preset disease buttons, seeded synthetic study cards, and frontend replay fixtures. A user enters any genuine disease name and fictional patient details; all displayed studies must originate from official ClinicalTrials.gov records.
