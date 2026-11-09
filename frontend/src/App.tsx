@@ -25,7 +25,7 @@ function requireOfficialStudies(trials:Trial[]):void{
 }
 const CRITERION_LABEL:Record<Status,string>={met:'Met / present',not_met:'Not met / absent',unknown:'Unknown',clinical_review:'Clinical review'};
 function slug(s:string){return s.toLowerCase().replace(/_/g,'-')}
-function getStorage():string[]{try{return JSON.parse(localStorage.getItem('ctm-saved')||'[]') as string[]}catch{return []}}
+function getStorage():string[]{try{const ids=JSON.parse(localStorage.getItem('ctm-saved')||'[]') as unknown;return Array.isArray(ids)?ids.filter((id):id is string=>typeof id==='string'&&/^NCT\d{8}$/.test(id)):[]}catch{return []}}
 
 function DashboardHeader({connection}:{connection:string}){
   return <div className="top-header">
