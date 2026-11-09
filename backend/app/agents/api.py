@@ -1,12 +1,13 @@
 """Public five-agent matching routes with strict model opt-in and no patient persistence."""
 from fastapi import APIRouter, HTTPException, Request
+import os
 import httpx
 from ..access import require_live_ai
 from ..clinicaltrials import fetch_trials_by_ids
 from ..reassessment import reassess
 from ..sandbox import all_sandbox_trials
 from ..schemas import Mode
-from ..settings import enabled
+from ..settings import enabled, GEMINI_MODEL, GEMINI_PROFILE_MODEL
 from ..llm import ModelUnavailable
 from .contracts import AgentRunRequest, AgentRunResponse, AgentClarifyRequest
 from .budget import AgentBudgetExceeded
@@ -14,15 +15,30 @@ from .orchestrator import execute
 
 router = APIRouter(prefix='/api/v1/matching', tags=['five-agent matching'])
 
+def model_readiness() -> tuple[bool, str]:
+    if not enabled('ENABLE_LIVE_AI'):
+        return False, 'ENABLE_LIVE_AI is false in the backend environment'
+    if not os.getenv('GEMINI_API_KEY', '').strip():
+        return False, 'GEMINI_API_KEY is missing from the backend environment'
+    if len(os.getenv('LIVE_AI_ACCESS_TOKEN', '')) < 16:
+        return False, 'LIVE_AI_ACCESS_TOKEN must be at least 16 characters'
+    return True, 'Gemini configured locally; a team token is required for model requests'
+
 @router.get('/capabilities')
 def capabilities():
+    ready, message = model_readiness()
     return {'contract_version':'2.0-A', 'agent_roles':['profile','discovery','analyst','skeptic','clarification'],
         'tools_available':True, 'live_model_enabled':enabled('ENABLE_LIVE_AI'),
+        'model_ready':ready,'model_readiness_message':message,
+        'model_provider':'Google Gemini','analysis_model':GEMINI_MODEL,'profile_model':GEMINI_PROFILE_MODEL,
         'max_studies':3, 'max_model_calls_per_run':9, 'patient_persistence':False,
-        'notice':'Tool-only roles are never misrepresented as independent LLM reasoning.'}
+        'notice':'Configured model names do not prove successful inference. Check the execution trace after running.'}
 
 async def _execute(req: AgentRunRequest, request: Request) -> AgentRunResponse:
     if req.depth=='model':
+        ready, reason = model_readiness()
+        if not ready:
+            raise HTTPException(status_code=503, detail=f'Model-assisted analysis unavailable: {reason}')
         require_live_ai(request)
     try:
         return await execute(req,model_authorized=req.depth=='model')
@@ -46,6 +62,9 @@ async def clarify(req: AgentClarifyRequest, request: Request):
     if not req.study_ids:
         raise HTTPException(422,'Clarification requires the original official or synthetic trial IDs')
     if req.depth=='model':
+        ready, reason = model_readiness()
+        if not ready:
+            raise HTTPException(status_code=503, detail=f'Model-assisted analysis unavailable: {reason}')
         require_live_ai(request)
     try:
         if req.mode==Mode.replay:
