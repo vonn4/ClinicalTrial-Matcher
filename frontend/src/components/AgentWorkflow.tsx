@@ -47,7 +47,7 @@ export default function AgentWorkflow({mode,profile,result,onCompleted}:Props){
         {working?<Loader2 className="spin" size={16}/>:<Play size={16}/>}
         {working?'Running stages…':'Run five-agent workflow'}
       </button>
-      <span>{mode==='live'?'Official ClinicalTrials.gov studies':'Fictional sandbox studies'} · up to 3 analyzed</span>
+      <span>Official ClinicalTrials.gov studies · up to 3 analyzed</span>
     </div>
     {error&&<div className="intake-error" role="alert"><AlertTriangle size={16}/> {error}</div>}
     {result&&<div className="agent-trace">
