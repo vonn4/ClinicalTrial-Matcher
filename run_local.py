@@ -103,6 +103,17 @@ def verify_workflow(backend_url: str, frontend_url: str) -> None:
             any(a['provenance'] != 'deterministic_followup' or a['skeptic'] for a in refined['assessments'])):
         raise RuntimeError('MVP 1.5-C shared response did not safely update all study criteria')
 
+    # MVP 2.0: verify the actual five-stage endpoint rather than only Vite/health.
+    agent_run = request_json(f'{backend_url}/api/v1/matching/analyze', {
+        'profile': guided, 'mode': 'replay', 'depth': 'tools', 'max_studies': 3}, timeout=15)
+    roles = [stage.get('agent') for stage in agent_run.get('trace', [])]
+    if roles != ['profile','discovery','analyst','skeptic','clarification']:
+        raise RuntimeError('Five-stage research workflow was not executed in order')
+    if agent_run.get('model_calls') != 0 or any(x.get('execution') != 'tools' for x in agent_run['trace']):
+        raise RuntimeError('Tool-only workflow incorrectly invoked or claimed language models')
+    if {x['nct_id'] for x in agent_run.get('assessments', [])} != {'DEMO-001','DEMO-002','DEMO-003'}:
+        raise RuntimeError('Agent workflow did not assess the expected source-owned studies')
+
     with urlopen(frontend_url, timeout=5) as response:
         page = response.read(30000).decode('utf8', errors='replace')
         if response.status != 200 or '<div id="root"></div>' not in page:
