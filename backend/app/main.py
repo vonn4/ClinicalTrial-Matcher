@@ -48,7 +48,7 @@ async def official_registry_status():
         logger.warning('ClinicalTrials.gov status unavailable: %s',type(exc).__name__)
         raise HTTPException(503,'ClinicalTrials.gov is unreachable right now. Live study search requires internet access.') from exc
 
-@app.get('/api/v1/demo/cases')
+@app.get('/api/v1/demo/cases', include_in_schema=False)  # legacy internal regression fixture only
 def demo_cases():
     f=fixture()
     return {'cases':[{'id':f['case_id'],'name':f['name'],'description':f['description']}],
