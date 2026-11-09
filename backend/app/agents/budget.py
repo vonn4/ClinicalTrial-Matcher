@@ -22,7 +22,7 @@ class AgentBudget:
 
     async def generate(self, *, model: str, system: str, payload: dict) -> dict:
         # A missing key/disabled provider is NOT counted as a completed or attempted API call.
-        if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes'} or not os.getenv('GEMINI_API_KEY','').strip():
+        if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes','on'} or not os.getenv('GEMINI_API_KEY','').strip():
             raise ModelUnavailable('A free-tier Gemini key and explicit ENABLE_LIVE_AI=true are required')
         async with _lock:
             if self.calls >= self.maximum:
