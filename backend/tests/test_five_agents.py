@@ -136,3 +136,43 @@ def test_agent_model_blindness_and_safe_schema_validation(monkeypatch):
     assert any(t.agent=='skeptic' and t.execution=='model' for t in result.trace)
     assert not any('primary_judgments' in payload or 'first_assessment' in payload for _,payload in captured)
     assert result.assessments[0].summary!='potential_match'
+
+
+def test_model_capability_detection_requires_backend_configuration(monkeypatch):
+    monkeypatch.delenv('GEMINI_API_KEY',raising=False)
+    monkeypatch.delenv('LIVE_AI_ACCESS_TOKEN',raising=False)
+    monkeypatch.delenv('ENABLE_LIVE_AI',raising=False)
+    response=client.get('/api/v1/matching/capabilities')
+    assert response.status_code==200
+    body=response.json()
+    assert body['model_ready'] is False
+    assert body['model_provider']=='Google Gemini'
+    assert 'ENABLE_LIVE_AI' in body['model_readiness_message']
+
+    monkeypatch.setenv('ENABLE_LIVE_AI','true')
+    body=client.get('/api/v1/matching/capabilities').json()
+    assert body['model_ready'] is False
+    assert 'GEMINI_API_KEY' in body['model_readiness_message']
+
+    monkeypatch.setenv('GEMINI_API_KEY','private-test-only-key')
+    body=client.get('/api/v1/matching/capabilities').json()
+    assert body['model_ready'] is False
+    assert 'LIVE_AI_ACCESS_TOKEN' in body['model_readiness_message']
+
+    monkeypatch.setenv('LIVE_AI_ACCESS_TOKEN','safe-local-testing-access-123')
+    body=client.get('/api/v1/matching/capabilities').json()
+    assert body['model_ready'] is True
+    assert body['analysis_model'] and body['profile_model']
+    assert 'private-test-only-key' not in str(body)
+    assert 'safe-local-testing-access-123' not in str(body)
+
+
+def test_model_mode_missing_provider_key_returns_explicit_configuration_error(monkeypatch):
+    monkeypatch.setenv('ENABLE_LIVE_AI','true')
+    monkeypatch.setenv('LIVE_AI_ACCESS_TOKEN','safe-local-testing-access-123')
+    monkeypatch.delenv('GEMINI_API_KEY',raising=False)
+    response=client.post('/api/v1/matching/analyze',
+        headers={'X-Live-Access-Token':'safe-local-testing-access-123'},
+        json={'mode':'replay','depth':'model','profile':patient(),'max_studies':1})
+    assert response.status_code==503
+    assert 'GEMINI_API_KEY' in response.json()['detail']
