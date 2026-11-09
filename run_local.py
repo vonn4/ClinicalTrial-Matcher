@@ -5,7 +5,7 @@
     python run_local.py --check  # verify services already running and actual input responses
     python run_local.py --no-browser
 
-Offline synthetic sandbox requires no API keys. Real registry search requires internet.
+Startup requires no API key; real registry discovery requires internet.
 Live eligibility LLM requires separate free-tier model opt-in; not enabled by launcher.
 """
 from __future__ import annotations
@@ -26,7 +26,6 @@ import webbrowser
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / 'backend'
 FRONTEND = ROOT / 'frontend'
-CUSTOM_SYNTHETIC = '29-year-old patient with sickle cell disease. Lives in Chicago, Illinois. Previous treatments are unknown.'
 
 
 def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> dict:
@@ -37,88 +36,28 @@ def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> d
 
 
 def verify_workflow(backend_url: str, frontend_url: str) -> None:
-    """Prove changing a user description changes the response, not just server health."""
-    health = request_json(f'{backend_url}/health')
-    if health.get('status') != 'ok':
-        raise RuntimeError('Backend health is not OK')
-    cases = request_json(f'{backend_url}/api/v1/demo/cases')
-    original = cases['profile']
-    fixed = request_json(f'{backend_url}/api/v1/analysis/run', {
-        'profile': original, 'mode': 'replay', 'limit': 3})
-    if len(fixed['assessments']) != 3:
-        raise RuntimeError('Original synthetic replay does not include its three pre-authored assessments')
-
-    edited = request_json(f'{backend_url}/api/v1/profiles/parse', {
-        'description': CUSTOM_SYNTHETIC, 'mode': 'replay'})
-    if edited.get('age') != 29 or edited.get('diagnosis') != 'sickle cell disease':
-        raise RuntimeError('Profile parser did not respond to modified patient input')
-    result = request_json(f'{backend_url}/api/v1/analysis/run', {
-        'profile': edited, 'mode': 'replay', 'limit': 3})
-    if [t['nct_id'] for t in result.get('trials', [])] != ['DEMO-004']:
-        raise RuntimeError('Trial matching did not respond to the new fictional diagnosis')
-    if result.get('assessments'):
-        raise RuntimeError('Unsafe result: custom synthetic patient incorrectly received pre-authored eligibility judgments')
-
-    # MVP 1.5-A guided patient profile: verify the new structured path, not just replay.
-    questions = request_json(f'{backend_url}/api/v1/intake/questions?condition=sickle%20cell%20disease')
-    if not any(q['id'] == 'sickle_genotype' for q in questions.get('questions', [])):
-        raise RuntimeError('Condition-specific intake questions were not returned')
-    guided = request_json(f'{backend_url}/api/v1/intake/profile', {
-        'answers': {'condition': {'state': 'answered', 'value': 'sickle cell disease'},
-                    'age': {'state': 'answered', 'value': '29'},
-                    'previous_treatments': {'state': 'unknown', 'value': None}},
-        'narrative': 'Synthetic guided intake for a fictional patient.', 'synthetic': True})
-    guided_result = request_json(f'{backend_url}/api/v1/analysis/run', {
-        'profile': guided, 'mode': 'replay', 'limit': 3})
-    if ([t['nct_id'] for t in guided_result['trials']] != ['DEMO-004'] or
-            guided_result['assessments'] or
-            guided_result['profile']['intake_answers']['previous_treatments']['state'] != 'unknown'):
-        raise RuntimeError('Guided profile did not retain unknown states or route to the correct fictional studies')
-
-    # MVP 1.5-B: a shared unknown age should yield one question linked to three
-    # distinct server-owned fictional studies, with no eligibility claim.
-    guided = request_json(f'{backend_url}/api/v1/intake/profile', {
-        'answers': {'condition': {'state': 'answered', 'value': 'non-small cell lung cancer'},
-                    'age': {'state': 'unknown', 'value': None}},
-        'synthetic': True})
-    plan = request_json(f'{backend_url}/api/v1/intake/followups', {
-        'profile': guided, 'mode': 'replay',
-        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003']})
-    age_questions = [q for q in plan['questions'] if q['fact_key'] == 'age']
-    if len(age_questions) != 1 or age_questions[0]['trial_count'] != 3:
-        raise RuntimeError('Cross-trial question deduplication failed')
-
-    # MVP 1.5-C: one follow-up response must change all linked study age
-    # requirements, while any chemotherapy exclusion remains independent.
-    preliminary = request_json(f'{backend_url}/api/v1/intake/reassess', {
-        'profile': guided, 'mode': 'replay',
-        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003'], 'updates': {}})
-    refined = request_json(f'{backend_url}/api/v1/intake/reassess', {
-        'profile': preliminary['profile'], 'mode': 'replay',
-        'trial_ids': ['DEMO-001', 'DEMO-002', 'DEMO-003'],
-        'updates': {'age': {'state': 'answered', 'value': '42'}}})
-    if (len(refined['changed_criteria']) != 3 or
-            {x['nct_id'] for x in refined['changed_criteria']} != {'DEMO-001', 'DEMO-002', 'DEMO-003'} or
-            any(x['after'] != 'met' for x in refined['changed_criteria']) or
-            any(a['provenance'] != 'deterministic_followup' or a['skeptic'] for a in refined['assessments'])):
-        raise RuntimeError('MVP 1.5-C shared response did not safely update all study criteria')
-
-    # MVP 2.0: verify the actual five-stage endpoint rather than only Vite/health.
-    agent_run = request_json(f'{backend_url}/api/v1/matching/analyze', {
-        'profile': guided, 'mode': 'replay', 'depth': 'tools', 'max_studies': 3}, timeout=15)
-    roles = [stage.get('agent') for stage in agent_run.get('trace', [])]
-    if roles != ['profile','discovery','analyst','skeptic','clarification']:
-        raise RuntimeError('Five-stage research workflow was not executed in order')
-    if agent_run.get('model_calls') != 0 or any(x.get('execution') != 'tools' for x in agent_run['trace']):
-        raise RuntimeError('Tool-only workflow incorrectly invoked or claimed language models')
-    if {x['nct_id'] for x in agent_run.get('assessments', [])} != {'DEMO-001','DEMO-002','DEMO-003'}:
-        raise RuntimeError('Agent workflow did not assess the expected source-owned studies')
-
-    with urlopen(frontend_url, timeout=5) as response:
-        page = response.read(30000).decode('utf8', errors='replace')
-        if response.status != 200 or '<div id="root"></div>' not in page:
-            raise RuntimeError('Vite did not serve the expected React application')
-    print('PASS: React page, backend health, guided intake, shared questions, cross-trial answer updates, replay safety')
+    """Check live-only UI contracts without requiring a registry network call."""
+    health=request_json(f'{backend_url}/health')
+    if health.get('status')!='ok' or health.get('mode_default')!='live':
+        raise RuntimeError('Backend unhealthy or still defaults to fictional replay')
+    caps=request_json(f'{backend_url}/api/v1/matching/capabilities')
+    if caps.get('agent_roles')!=['profile','discovery','analyst','skeptic','clarification']:
+        raise RuntimeError('Five-agent workflow is not registered')
+    questions=request_json(f'{backend_url}/api/v1/intake/questions?include_all=true')
+    if not any(q.get('id')=='condition' for q in questions.get('questions',[])):
+        raise RuntimeError('Guided intake does not accept open disease names')
+    profile=request_json(f'{backend_url}/api/v1/intake/profile',{
+        'answers':{
+            'condition':{'state':'answered','value':'multiple sclerosis'},
+            'age':{'state':'answered','value':'31'}
+        },'synthetic':True})
+    if profile.get('diagnosis')!='multiple sclerosis' or profile.get('age')!=31:
+        raise RuntimeError('Open disease input not preserved by canonical profile')
+    with urlopen(frontend_url,timeout=5) as response:
+        page=response.read(30000).decode('utf8',errors='replace')
+        if response.status!=200 or '<div id="root"></div>' not in page:
+            raise RuntimeError('Vite did not serve the expected React app')
+    print('PASS: live-only frontend, backend default, open disease intake and five-agent routes')
 
 
 def verify_live_registry(backend_url: str) -> None:
@@ -155,6 +94,16 @@ def verify_live_registry(backend_url: str) -> None:
     print('Official API version:',status['api_version'],'data timestamp:',status['data_timestamp'])
     print('Retrieved official NCT IDs:',', '.join(x['nct_id'] for x in trials))
     print('Unmapped requirements:',len(plan.get('unmapped_criteria') or []),'— not inferred or auto-cleared')
+    agent_run=request_json(f'{backend_url}/api/v1/matching/analyze',{
+        'profile':fake_profile,'mode':'live','depth':'tools','max_studies':3},timeout=65)
+    roles=[step.get('agent') for step in agent_run.get('trace',[])]
+    if roles!=['profile','discovery','analyst','skeptic','clarification']:
+        raise RuntimeError('Live five-agent matching did not execute the expected roles')
+    if not agent_run.get('trials') or any(
+        t.get('source')!='clinicaltrials.gov' or not t.get('nct_id','').startswith('NCT')
+        for t in agent_run.get('trials',[])):
+        raise RuntimeError('Agent workflow returned no official studies or unexpected synthetic records')
+    print('PASS: five-agent tool-only matching over official ClinicalTrials.gov studies')
 
 
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
@@ -248,9 +197,9 @@ def main() -> int:
         verify_workflow(b, f)
         print((
             f'\nREADY: {f}\n'
-            'Guided intake: discover fictional trials, answer a shared follow-up and see linked criteria update.\n'
-            'Quick description: edit fictional patient text or choose a scenario.\n'
-            'Real studies: live ClinicalTrials.gov is now the default; use guided intake with a fictional patient.\n'
+            'Guided intake: enter a real disease; studies come exclusively from ClinicalTrials.gov.\n'
+            'Quick description: fictional patient details, real registered studies, no demo fallback.\n'
+            'Official registry: live searches need internet connectivity.\n'
             'Run `python run_local.py --check-live` from another terminal to verify the official API.\n'
             'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
             'Stop both services with Ctrl+C.\n'
