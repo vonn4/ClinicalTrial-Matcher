@@ -36,7 +36,7 @@ async def model_unavailable(_req:Request,exc:ModelUnavailable):
 @app.get('/health')
 def health():
     return {'status':'ok','version':'0.1.0','live_ai_enabled':enabled('ENABLE_LIVE_AI'),
-            'mode_default':'replay','synthetic_only':True}
+            'mode_default':'live','synthetic_only':True}
 
 
 @app.get('/api/v1/registry/status')
