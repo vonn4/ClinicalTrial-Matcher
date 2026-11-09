@@ -123,7 +123,10 @@ async def intake_reassess(req: ReassessmentRequest):
 
 @app.post('/api/v1/profiles/parse',response_model=PatientProfile)
 async def parse_profile(req:ProfileRequest,request:Request):
-    if req.mode==Mode.live and enabled('ENABLE_LIVE_AI'):
+    # Public live-registry search must remain usable without AI credentials.
+    # An explicitly supplied team token opts into the legacy model profiler;
+    # normal quick descriptions use the deterministic parser.
+    if req.mode==Mode.live and enabled('ENABLE_LIVE_AI') and request.headers.get('X-Live-Access-Token'):
         require_live_ai(request)
         try:return await llm_profile(req.description)
         except ValueError as e:raise HTTPException(422,str(e)) from e
