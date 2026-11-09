@@ -1,3 +1,11 @@
+## MVP 2.0 five-agent core — draft PR #11 (review branch)
+
+- **Implemented in `feat/mvp-2.0-five-agent-core`:** all five roles are executable from the guided-intake workflow: Profile, Discovery, Analyst, blinded Skeptic, Clarification. Tool-only mode uses no LLM and is clearly labeled; separate model-assisted mode requires team authorization and a verified free-tier key.
+- **Implemented:** `/api/v1/matching/analyze`, `/api/v1/matching/clarify`, `/api/v1/matching/capabilities`, React agent activity metrics, shared follow-up answer refresh, deterministic evidence checks, bounded registry queries, and per-run/per-hour inference attempt caps.
+- **Implemented:** automated offline integration tests and a source-verified dependency inventory. An offline ablation scoring script accepts externally supplied criterion labels and predictions but generates **no claimed research findings** on its own.
+- **Unverified:** real-provider Gemini inference, live ClinicalTrials.gov network UAT, in-browser Windows testing, full complex clinical-criteria support, historical TREC experiments, independently adjudicated labels, and production deployment. The tool-only source-integrity check is **not** an independent AI skeptic execution.
+- **Workflow:** draft PR #11 targets the previous live-registry feature branch, not `main`.
+
 # ClinicalTrial Matcher — current implementation status
 
 ## Official ClinicalTrials.gov API integration (live registry)
