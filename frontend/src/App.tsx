@@ -124,7 +124,6 @@ export default function App(){
   const [filter,setFilter]=useState('all');
   const [query,setQuery]=useState('');
   const [liveSearched,setLiveSearched]=useState(false);
-  const [liveToken,setLiveToken]=useState('');
   const [followupPlan,setFollowupPlan]=useState<FollowupPlan|null>(null);
   const [followupBusy,setFollowupBusy]=useState(false);
   const [followupError,setFollowupError]=useState('');
@@ -244,7 +243,7 @@ export default function App(){
   return <div className="app-shell"><Sidebar page={page} setPage={setPage} savedCount={saved.length}/><main className="main-content"><DashboardHeader connection={connection}/>
     <div className="safety-banner"><div><ShieldCheck size={17}/><strong>Research demonstration</strong><span>•</span> Synthetic patient data only. No medical advice or eligibility determination.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
     {page==='discover'&&<><section className="intro-heading"><div><div className="section-eyebrow"><Sparkles size={15}/> AI-ASSISTED DISCOVERY</div><h2>Start with a patient story.</h2><p>We'll find relevant studies and show exactly what is known, uncertain, or conflicting.</p></div><span className="synthetic-tag">REAL REGISTERED STUDIES</span></section>
-      {mode==='live'&&<div className="registry-banner" role="status"><div><strong>OFFICIAL LIVE STUDIES · FREE PUBLIC DATA</strong><p>Search any condition, including rare diseases. Results come from ClinicalTrials.gov, not the fictional DEMO database. No AI key is required for study discovery.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
+      {mode==='live'&&<div className="registry-banner" role="status"><div><strong>OFFICIAL LIVE STUDIES · FREE PUBLIC DATA</strong><p>Search real studies for any condition, including rare diseases. An AI key is not required for study discovery.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
       <div className="intake-method-switch" role="group" aria-label="Profile intake method">
         <div><strong>How would you like to build the profile?</strong><p>Guided questions help capture important facts without requiring medical-writing expertise.</p></div>
         <div className="intake-method-buttons">
