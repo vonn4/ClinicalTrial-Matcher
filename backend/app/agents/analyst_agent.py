@@ -32,9 +32,20 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
     # in the full deterministic clinical-review path instead of being truncated.
     results = []
     handled = 0
+    unsupported = 0
+    failed = 0
     for t in trials:
-        outcome = await model_judgment(profile, t, budget)
+        try:
+            outcome = await model_judgment(profile, t, budget)
+        except Exception:
+            # Model/provider failures must not discard independent reviews of
+            # earlier trials. The failed study becomes an explicit partial rule
+            # check; it must never be mistaken for a successful AI assessment.
+            failed += 1
+            outcome = None
         if outcome is None:
+            if len(extract_criteria(t.eligibility_text)) > MAX_MODEL_CRITERIA:
+                unsupported += 1
             results.append(review_trial(profile, t))
             continue
         criteria, assessments = outcome
@@ -43,4 +54,5 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
         results.append(TrialAssessment(nct_id=t.nct_id, criteria=criteria, assessments=assessments,
                         skeptic=[], summary=summary, unresolved=unresolved, provenance='live_llm'))
         handled += 1
-    return results, {'model_invoked': handled > 0, 'model_reviewed': handled, 'trials': len(trials)}
+    return results, {'model_invoked': handled > 0, 'model_reviewed': handled,
+                     'model_failures': failed, 'criteria_limit_skips': unsupported, 'trials': len(trials)}
