@@ -106,6 +106,23 @@ def verify_live_registry(backend_url: str) -> None:
     print('PASS: five-agent tool-only matching over official ClinicalTrials.gov studies')
 
 
+def verify_model_readiness(backend_url: str) -> None:
+    """Inspect configuration only; do NOT send a paid or free-tier inference request."""
+    caps=request_json(f'{backend_url}/api/v1/matching/capabilities')
+    roles=caps.get('agent_roles',[])
+    print('Agent roles:',', '.join(roles))
+    print('Provider:',caps.get('model_provider','unconfigured'))
+    if not caps.get('model_ready'):
+        raise RuntimeError('Gemini not configured on this backend: '+
+                           str(caps.get('model_readiness_message','unknown reason'))+
+                           '. Edit the project .env file, restart python run_local.py and retry.')
+    print('READY: Gemini configuration found on backend.')
+    print('Profile model:',caps.get('profile_model'))
+    print('Analysis/skeptic model:',caps.get('analysis_model'))
+    print('To verify ACTUAL inference, select Model-assisted analysis before searching a fictional profile.')
+    print('This check performs zero inference calls and does not validate provider quota.')
+
+
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
     start = time.monotonic()
     while time.monotonic() - start < timeout:
@@ -169,6 +186,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Start and interaction-test ClinicalTrial Matcher')
     parser.add_argument('--check', action='store_true', help='Test existing frontend/backend including custom profile submissions')
     parser.add_argument('--check-live', action='store_true', help='Test REAL ClinicalTrials.gov API and follow-up pipeline; requires internet and an already running backend')
+    parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking Gemini (backend must be running)')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
     parser.add_argument('--no-install', action='store_true', help='Fail rather than install missing free dependencies')
     parser.add_argument('--backend-port', type=int, default=8000)
@@ -183,6 +201,9 @@ def main() -> int:
             return 0
         if args.check_live:
             verify_live_registry(b)
+            return 0
+        if args.check_ai:
+            verify_model_readiness(b)
             return 0
         ensure_dependencies(args.no_install)
         env = {**os.environ, **load_env(ROOT / '.env')}
@@ -201,7 +222,7 @@ def main() -> int:
             'Quick description: fictional patient details, real registered studies, no demo fallback.\n'
             'Official registry: live searches need internet connectivity.\n'
             'Run `python run_local.py --check-live` from another terminal to verify the official API.\n'
-            'Live AI: separately opt in with a free-tier Gemini key; the launcher does not enable paid features.\n'
+            'Live AI: configure a verified free-tier Gemini key in project .env; run --check-ai to inspect readiness.\n'
             'Stop both services with Ctrl+C.\n'
         ), flush=True)
         if not args.no_browser:
