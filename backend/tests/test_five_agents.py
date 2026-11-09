@@ -99,6 +99,8 @@ def test_clarification_rechecks_all_linked_studies():
 
 
 def test_budget_enforces_caps_before_dispatch(monkeypatch):
+    monkeypatch.setenv('ENABLE_LIVE_AI','true')
+    monkeypatch.setenv('GEMINI_API_KEY','test-only-key')
     async def fake_generate_json(**_): return {'ok':True}
     monkeypatch.setattr('app.agents.budget.generate_json',fake_generate_json)
     budget=AgentBudget(maximum=2)
