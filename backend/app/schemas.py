@@ -63,7 +63,7 @@ class PatientProfile(BaseModel):
 
 class ProfileRequest(BaseModel):
     description: str = Field(min_length=10, max_length=3000)
-    mode: Mode = Mode.replay
+    mode: Mode = Mode.live
 
 class TrialRecord(BaseModel):
     nct_id: str
@@ -121,7 +121,7 @@ class TrialAssessment(BaseModel):
 
 class SearchRequest(BaseModel):
     profile: PatientProfile
-    mode: Mode = Mode.replay
+    mode: Mode = Mode.live
     limit: int = Field(default=10,ge=1,le=40)
 
 class SearchResponse(BaseModel):
@@ -134,11 +134,11 @@ class SearchResponse(BaseModel):
 class AssessRequest(BaseModel):
     profile: PatientProfile
     trial: TrialRecord
-    mode: Mode = Mode.replay
+    mode: Mode = Mode.live
 
 class AnalysisRequest(BaseModel):
     profile: PatientProfile
-    mode: Mode = Mode.replay
+    mode: Mode = Mode.live
     limit: int = Field(default=3,ge=1,le=5)
 
 class AnalysisResponse(BaseModel):
@@ -173,7 +173,7 @@ class UnmappedCriterion(BaseModel):
 
 class FollowupRequest(BaseModel):
     profile: PatientProfile
-    mode: Mode = Mode.replay
+    mode: Mode = Mode.live
     trial_ids: list[str] = Field(min_length=1, max_length=8)
 
     @field_validator('trial_ids')
