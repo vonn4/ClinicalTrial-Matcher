@@ -36,7 +36,7 @@ export async function checkLiveRegistry():Promise<{connected:boolean;provider:st
   const timeout=setTimeout(()=>controller.abort(),15000);
   try {
     const r=await fetch(`${API_BASE}/api/v1/registry/status`,{signal:controller.signal});
-    if(!r.ok)throw new Error('Official registry unavailable — check internet access or try the fictional sandbox.');
+    if(!r.ok)throw new Error('Official registry unavailable — check the internet connection and retry.');
     return await r.json();
   }finally {clearTimeout(timeout);}
 }
