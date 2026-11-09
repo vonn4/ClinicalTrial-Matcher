@@ -7,7 +7,7 @@ import asyncio
 import os
 import time
 from collections import deque
-from ..llm import generate_json
+from ..llm import generate_json, ModelUnavailable
 
 _lock = asyncio.Lock()
 _calls = deque()
@@ -21,6 +21,9 @@ class AgentBudget:
         self.calls = 0
 
     async def generate(self, *, model: str, system: str, payload: dict) -> dict:
+        # A missing key/disabled provider is NOT counted as a completed or attempted API call.
+        if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes'} or not os.getenv('GEMINI_API_KEY','').strip():
+            raise ModelUnavailable('A free-tier Gemini key and explicit ENABLE_LIVE_AI=true are required')
         async with _lock:
             if self.calls >= self.maximum:
                 raise AgentBudgetExceeded('Per-run model-call budget exhausted')
