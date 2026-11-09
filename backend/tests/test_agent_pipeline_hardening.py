@@ -74,6 +74,8 @@ def test_live_pipeline_falls_back_when_gemini_discovery_fails(monkeypatch):
     assert result["trials"][0]["nct_id"] == "NCT12345678"
     assert result["trace"][1]["details"]["model_fallback"] is True
     assert result["trace"][1]["execution"] == "tools"
+    assert "Optional model query planning failed" in result["trace"][1]["summary"]
+    assert "Partial-model limitations" in result["notice"]
     assert result["trace"][2]["execution"] == "model"
     assert result["trace"][3]["execution"] == "model"
 
@@ -108,6 +110,7 @@ def test_partial_primary_model_failure_preserves_other_agent_work(monkeypatch):
     assert [a["provenance"] for a in data["assessments"]].count("deterministic_followup") == 1
     assert data["trace"][2]["details"]["model_failures"] == 1
     assert data["trace"][3]["details"]["independent_trials"] == 2
+    assert "model review(s) failed" in data["notice"]
 
 
 def test_failed_independent_skeptic_cannot_silently_clear_trial(monkeypatch):
