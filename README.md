@@ -1,3 +1,7 @@
+## MVP 2.0 — Five-agent matching (review branch)
+
+The approved architecture now has five independently testable role boundaries: patient profiling, official trial discovery, eligibility analysis, independent skeptical review, and source-grounded clarification. The **normal guided intake** executes the five-role tool-only workflow at $0. Model-assisted inference is separately gated, bounded and honestly traced. See [implementation notes](docs/MVP_2_0_IMPLEMENTATION.md). **Not clinically validated; do not use real patient information.** Full benchmark, real-model and live-registry UAT remain release gates.
+
 # ClinicalTrial Matcher
 
 **Hackaroo 2026 · AI / Data Science · Synthetic research prototype**
