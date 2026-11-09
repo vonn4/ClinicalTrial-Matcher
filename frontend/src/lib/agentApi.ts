@@ -25,6 +25,28 @@ export interface AgentResult {
 }
 export type AgentDepth = 'tools'|'model';
 export interface AgentSettings {depth:AgentDepth; token:string}
+export interface AgentCapabilities {
+  agent_roles:AgentTrace['agent'][];
+  tools_available:boolean;
+  live_model_enabled:boolean;
+  model_ready:boolean;
+  model_readiness_message:string;
+  model_provider:string;
+  profile_model:string;
+  analysis_model:string;
+  max_studies:number;
+  max_model_calls_per_run:number;
+}
+
+export async function getAgentCapabilities():Promise<AgentCapabilities>{
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),10000);
+  try{
+    const response=await fetch(`${API_BASE}/api/v1/matching/capabilities`,{signal:controller.signal});
+    if(!response.ok)throw new Error(`Agent configuration unavailable (${response.status})`);
+    return await response.json() as AgentCapabilities;
+  }finally{clearTimeout(timeout);}
+}
 
 async function request<T>(path:string,body:object,token:string):Promise<T> {
   const controller=new AbortController();
