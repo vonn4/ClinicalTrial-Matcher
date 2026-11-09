@@ -51,6 +51,10 @@ If one age answer resolves the source age criteria in multiple trials, submit it
 5. Explicitly enable model inference locally, with a permitted free-tier project/token, and rerun. Confirm actual model calls, independent skeptic findings, and a bounded call count. Do not describe model behavior as validated until executed and compared against labeled cases.
 6. Verify errors/quotas produce explicit fallback or failures, never silent positive eligibility conclusions.
 
+## Offline ablation scoring
+
+`evaluation/evaluate_agent_ablations.py` computes criterion-level scores from actual supplied labels and predictions. This is an evaluation harness, not a completed clinical validation or a source of fabricated model accuracy. See `evaluation/README.md` for required CSV fields.
+
 ## Remaining release gates (not claimed complete)
 
 - Clinical-grade criterion coverage / complex compound logic and independently adjudicated reference annotations.
