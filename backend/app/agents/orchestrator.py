@@ -34,6 +34,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         if not use_model: raise
         profile, meta = await profile_agent.execute(request.profile, model=False, budget=budget)
         fallback = True
+    profile_meta_concerns = meta.get('concerns', [])
     trace.append(event('profile','tools' if fallback or not meta['model_invoked'] else 'model',
         'Canonical facts rebuilt; model suggestions never overwrite confirmed answers.' +
         (' Model unavailable; used verified input only.' if fallback else ''),t,calls,budget,meta))
@@ -99,10 +100,12 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         (' Model prioritization failed; deterministic ordering retained.' if fallback else ''),
         t,calls,budget,meta))
 
+    profile_concerns = [v for v in profile_meta_concerns if isinstance(v,str) and v.strip()][:5]
     agent_completed = sum(1 for stage in trace if stage.execution=='model')
     return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=reviewed,
         followups=followups,trace=trace,model_calls=budget.calls,
         candidate_count=int(trace[1].details.get('candidate_count',len(studies))),
+        profile_concerns=profile_concerns,
         notice=(f'Five agent roles executed; {agent_completed} used model inference, '
                 f'{5-agent_completed} used controlled tools. This is preliminary research navigation, '
                 'not clinical eligibility. All patients must be fictional.'))
