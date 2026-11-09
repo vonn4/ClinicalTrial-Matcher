@@ -56,8 +56,15 @@ export default function AgentWorkflow({mode,profile,result,onCompleted}:Props){
       {result.trace.map(stage=><div className="agent-trace-row" key={stage.agent}>
         <div className="agent-trace-icon"><CheckCircle2 size={17}/></div>
         <div className="agent-trace-content"><b>{LABELS[stage.agent]}</b><p>{stage.summary}</p>
-          <small>{stage.execution==='model'?'Model reasoning invoked':stage.execution==='tools'?'Controlled tools / rules, no model':'Not completed'} · {stage.model_calls} calls · {stage.duration_ms.toFixed(0)} ms</small></div>
+          <small>{stage.execution==='model'?'Model reasoning invoked':stage.execution==='tools'?'Controlled tools / rules, no model':'Not completed'} · {stage.model_calls} calls · {stage.duration_ms.toFixed(0)} ms</small>
+          <div className="agent-stage-metrics">{Object.entries(stage.details).filter(([key,value])=>key!=='model_invoked' && (typeof value==='number' || typeof value==='boolean')).slice(0,4).map(([key,value])=><span key={key}>{key.replace(/_/g,' ')}: {String(value)}</span>)}</div>
+        </div>
       </div>)}
+      {result.profile_concerns?.length>0&&<div className="agent-concerns">
+        <strong>Profile Agent — unverified concerns to review</strong>
+        <ul>{result.profile_concerns.map((note,i)=><li key={i}>{note}</li>)}</ul>
+        <small>These are suggestions only. Confirm or correct the guided profile before relying on them.</small>
+      </div>}
       <div className="agent-result-note"><Info size={15}/>{result.notice}</div>
     </div>}
   </section>;
