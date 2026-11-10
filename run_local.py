@@ -224,16 +224,18 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
 
     Makes REAL AI provider requests using only a fictional profile and the local
     server-side team token. Does not print credentials, payloads or patient facts.
-    Requires a running backend and explicit user free-tier confirmation.
+    Requires a running backend and explicit API usage confirmation; requests may be billable.
     """
     verify_model_readiness(backend_url)
     local = load_env(ROOT / '.env')
     caps = request_json(f'{backend_url}/api/v1/matching/capabilities')
-    if (caps.get('profile_model') != local.get('OPENAI_PROFILE_MODEL', local.get('OPENAI_MODEL', 'gpt-4.1-mini')')
-        or caps.get('analysis_model') != local.get('OPENAI_MODEL', 'gpt-4.1-mini')):
-        raise RuntimeError(
-            'Running backend is using different model IDs than .env. Restart python run_local.py first.'
-        )
+    selected = local.get('AI_PROVIDER', 'gemini').strip().lower()
+    expected_profile = (local.get('OPENAI_PROFILE_MODEL', local.get('OPENAI_MODEL','gpt-4.1-mini'))
+                        if selected == 'openai' else local.get('GEMINI_PROFILE_MODEL','gemini-3.5-flash-lite'))
+    expected_analysis = (local.get('OPENAI_MODEL','gpt-4.1-mini')
+                         if selected == 'openai' else local.get('GEMINI_MODEL','gemini-3.5-flash'))
+    if caps.get('profile_model') != expected_profile or caps.get('analysis_model') != expected_analysis:
+        raise RuntimeError('Running backend uses different model IDs than .env. Restart python run_local.py first.')
     profile = request_json(f'{backend_url}/api/v1/intake/profile', {
         'synthetic': True,
         'answers': {
