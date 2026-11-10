@@ -1,5 +1,6 @@
 """Versioned public contracts for the controlled five-agent workflow."""
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 from ..schemas import Mode, PatientProfile, TrialRecord, TrialAssessment, FollowupPlan, IntakeAnswer, CriterionDelta
 
@@ -15,6 +16,7 @@ class AgentTrace(BaseModel):
     details: dict[str, int | float | str | bool] = Field(default_factory=dict)
 
 class AgentRunRequest(BaseModel):
+    run_id: UUID | None = None
     profile: PatientProfile
     mode: Mode = Mode.live
     depth: Literal['tools', 'model'] = 'tools'
