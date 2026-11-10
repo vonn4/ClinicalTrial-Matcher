@@ -6,7 +6,7 @@ const LABELS:Record<AgentTrace['agent'],string>={
   skeptic:'Independent skeptic',clarification:'Follow-up questions'
 };
 function failed(stage:AgentTrace):boolean{
-  return Number(stage.details.model_failures||0)>0||
+  return Number(stage.details.model_failures||0)>0||Number(stage.details.budget_skips||0)>0||
     stage.details.model_fallback===true||(stage.model_calls>0&&stage.execution!=='model');
 }
 export default function AgentWorkflow({result}:{result:AgentResult|null}){
@@ -30,9 +30,11 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
         </div>
         <div className="agent-trace-content">
           <b>{LABELS[stage.agent]}</b>
-          <small>{failed(stage)?'AI unavailable; fallback used':stage.execution==='model'?'AI review completed':stage.execution==='tools'?'Rules / tools only':stage.execution==='skipped'?'No review required':'Stage failed'} · {stage.model_calls} model call{stage.model_calls===1?'':'s'}</small>
+          <small>{Number(stage.details.budget_skips||0)>0?'Partial AI coverage; other studies use rules-only review':failed(stage)?'AI unavailable; fallback used':stage.execution==='model'?'AI review completed':stage.execution==='tools'?'Rules / tools only':stage.execution==='skipped'?'No review required':'Stage failed'} · {stage.model_calls} model call{stage.model_calls===1?'':'s'}</small>
           {failed(stage)&&<p className="agent-error-detail">
-            {typeof stage.details.model_help==='string'?stage.details.model_help:'AI inference failed; inspect the configured model and provider access.'}
+            {Number(stage.details.budget_skips||0)>0?
+              `${stage.details.budget_skips} study/studies used rules-only review to reserve independent Skeptic capacity. ${typeof stage.details.model_help==='string'?stage.details.model_help:''}`:
+              typeof stage.details.model_help==='string'?stage.details.model_help:'AI inference failed; inspect the configured model and provider access.'}
             {typeof stage.details.model_http_status==='number'?` (HTTP ${stage.details.model_http_status})`:''}
           </p>}
           <details className="agent-technical-details"><summary>Stage details</summary>
