@@ -28,9 +28,10 @@ function statusLabel(answer: IntakeAnswer|undefined) {
 interface Props {
   onSearch: (submission: IntakeSubmission)=>Promise<void>;
   busy: boolean;
+  progressText?: string;
 }
 
-export default function GuidedIntake({onSearch,busy}:Props) {
+export default function GuidedIntake({onSearch,busy,progressText}:Props) {
   const [questions,setQuestions]=useState<IntakeQuestion[]>([]);
   const [loadError,setLoadError]=useState('');
   const [answers,setAnswers]=useState<Record<string,IntakeAnswer>>({});
@@ -144,6 +145,7 @@ export default function GuidedIntake({onSearch,busy}:Props) {
               Search real ClinicalTrials.gov studies</button>}
         </div>
       </div>
+      {busy&&<p className="active-progress" role="status" aria-live="polite"><Loader2 size={15} className="spin"/> {progressText||'Starting the research workflow…'}</p>}
     </>}
   </section>;
 }
