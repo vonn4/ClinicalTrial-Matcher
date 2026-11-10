@@ -1,7 +1,7 @@
 """Agent 1: grounded patient profiling. Unverified model proposals never become canonical facts."""
 from ..intake import profile_from_guided_or_text
 from ..schemas import PatientProfile
-from ..settings import GEMINI_PROFILE_MODEL
+from ..settings import AI_PROFILE_MODEL
 from .budget import AgentBudget
 
 async def execute(profile: PatientProfile, *, model: bool, budget: AgentBudget) -> tuple[PatientProfile, dict]:
@@ -14,7 +14,7 @@ async def execute(profile: PatientProfile, *, model: bool, budget: AgentBudget) 
     flags: list[str] = []
     invoked = False
     if model and narrative:
-        response = await budget.generate(model=GEMINI_PROFILE_MODEL,
+        response = await budget.generate(model=AI_PROFILE_MODEL,
             system=('You are a synthetic patient profile quality checker. The structured facts are authoritative. '
                     'Find possible contradictions or missing information, but never infer a diagnosis, mutation, '
                     'test result, or eligibility. Return JSON {"concerns": ["..."]}. '
