@@ -43,7 +43,7 @@ export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disa
       <input id="matching-team-token" type="password" autoComplete="off"
         value={token} onChange={e=>onTokenChange(e.target.value)}
         disabled={disabled} placeholder="Your LIVE_AI_ACCESS_TOKEN (not an API provider key)"/>
-      <span>Enter your team token, not your OpenAI or Gemini API key. Kept only in this page.</span>
+      <span>Enter the browser team token, never your OpenAI API key. Kept only in this page.</span>
     </div>}
     
   </section>;
