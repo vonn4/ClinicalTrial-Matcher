@@ -8,6 +8,8 @@ This module DOES NOT make eligibility judgments, persist answers, or invoke an L
 from __future__ import annotations
 import re
 from dataclasses import dataclass
+from .age_rules import age_bounds
+from .clinical_rules import fev1_bounds, f508del_minimum_copies, modulator_use_clause, pregnancy_clause
 from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .schemas import (
     PatientProfile, TrialRecord, IntakeAnswer, FollowupQuestion, FollowupPlan,
@@ -37,6 +39,10 @@ DEFINITIONS: dict[str, QuestionDefinition] = {
     'autoimmune_immunosuppression': QuestionDefinition('autoimmune_immunosuppression', 'Does the patient have an active autoimmune disease requiring immunosuppressive medication?', 'This combination appears in a study exclusion criterion.', 'select', ('Yes', 'No', "I don't know"), 5),
     'prior_stem_cell_transplant': QuestionDefinition('prior_stem_cell_transplant', 'Has the patient previously received a stem cell transplant?', 'A study identifies prior stem cell transplant as an exclusion.', 'select', ('Yes', 'No', "I don't know"), 5),
     'cftr_result': QuestionDefinition('cftr_result', 'What documented CFTR genetic variant was detected, if known?', 'A trial requires confirmation of a specific CFTR variant.', 'text', (), 4),
+    'fev1_percent': QuestionDefinition('fev1_percent', 'What is the most recent FEV1, as a whole-number percent of predicted?', 'The study specifies a lung-function (FEV1 % predicted) threshold.', 'number', (), 4),
+    'f508del_copies': QuestionDefinition('f508del_copies', 'How many copies of the F508del CFTR variant are documented?', 'The study requires a specific number of F508del copies.', 'select', ('Two copies', 'One copy', 'None', "I don't know"), 4),
+    'cftr_modulator_use': QuestionDefinition('cftr_modulator_use', 'Is the patient currently taking a CFTR modulator (for example Trikafta / elexacaftor-tezacaftor-ivacaftor)?', 'The study criteria refer to current CFTR modulator therapy.', 'select', ('Yes', 'No', "I don't know"), 4),
+    'pregnant_or_breastfeeding': QuestionDefinition('pregnant_or_breastfeeding', 'Is the patient currently pregnant or breastfeeding?', 'Pregnancy or breastfeeding is a study exclusion.', 'select', ('Yes', 'No', "I don't know"), 2),
     'recent_lung_transplant': QuestionDefinition('recent_lung_transplant', 'Has the patient recently received a lung transplant?', 'A trial identifies a recent lung transplant as an exclusion.', 'select', ('Yes', 'No', "I don't know"), 5),
 }
 
@@ -49,6 +55,8 @@ def map_criterion(text: str, kind: str) -> str | None:
     """
     t = ' '.join(text.lower().strip().split()).rstrip(' .;')
     if re.fullmatch(r'(?:patient is at least \d{1,3} years old|adult patient at least \d{1,3} years old|adults? \d{1,3} years or older|adults aged \d{1,3} through \d{1,3} years|age \d{1,3} years or older)',t):
+        return 'age'
+    if kind=='inclusion' and age_bounds(t) is not None:
         return 'age'
     if re.fullmatch(r'(?:non-small cell lung cancer diagnosis|confirmed sickle cell disease diagnosis|confirmed cystic fibrosis diagnosis)',t):
         return 'diagnosis_confirmation'
@@ -70,6 +78,14 @@ def map_criterion(text: str, kind: str) -> str | None:
         return 'prior_stem_cell_transplant'
     if t=='specific cftr variant confirmed on genetic testing':
         return 'cftr_result'
+    if fev1_bounds(t) is not None:
+        return 'fev1_percent'
+    if f508del_minimum_copies(t) is not None:
+        return 'f508del_copies'
+    if modulator_use_clause(t):
+        return 'cftr_modulator_use'
+    if kind=='exclusion' and pregnancy_clause(t):
+        return 'pregnant_or_breastfeeding'
     if kind=='exclusion' and t=='recent lung transplant':
         return 'recent_lung_transplant'
     return None

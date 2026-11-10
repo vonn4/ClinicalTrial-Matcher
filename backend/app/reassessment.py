@@ -6,6 +6,8 @@ clinical review. Source facts are self-reported synthetic examples.
 """
 from __future__ import annotations
 import re
+from .age_rules import age_bounds
+from .clinical_rules import fev1_bounds, f508del_minimum_copies
 from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .followups import DEFINITIONS, answer_state, map_criterion, validated_followup, build_followup_plan
 from .intake import profile_from_guided_or_text
@@ -17,7 +19,7 @@ from .schemas import (
 SIMPLE_EXCLUSIONS = {
     'active_uncontrolled_infection', 'prior_systemic_chemotherapy',
     'autoimmune_immunosuppression', 'prior_stem_cell_transplant',
-    'recent_lung_transplant',
+    'recent_lung_transplant', 'pregnant_or_breastfeeding',
 }
 
 
@@ -85,9 +87,10 @@ def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Crite
                       (not upper or age<=int(upper.group(1))))
                 status='met' if good else 'not_met'
         else:
-            nums=[int(n) for n in re.findall(r'\b\d{1,3}\b',t)]
-            if age>=0 and nums:
-                good=(age>=nums[0] and (len(nums)==1 or age<=nums[1]))
+            bounds=age_bounds(t) if criterion.kind=='inclusion' else None
+            if age>=0 and bounds:
+                lo,hi=bounds
+                good=(lo is None or age>=lo) and (hi is None or age<=hi)
                 status='met' if good else 'not_met'
         if status in {'met','not_met'}:
             explanation=f'Reported age {age} {"meets" if status=="met" else "does not meet"} this study age requirement (self-reported; not clinical screening).'
@@ -119,6 +122,29 @@ def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Crite
             status='clinical_review';explanation='Positive EGFR testing does not establish the specific activating variant required by the trial.'
         else:
             status='unknown';explanation='An inconclusive result cannot establish a required EGFR activating mutation.'
+    elif key=='fev1_percent':
+        bounds=fev1_bounds(t)
+        try: fev=int(value)
+        except ValueError: fev=-1
+        if fev>=0 and bounds:
+            lo,hi=bounds
+            good=(lo is None or fev>=lo) and (hi is None or fev<=hi)
+            status='met' if good else 'not_met'
+            explanation=f'Reported FEV1 {fev}% predicted {"meets" if good else "does not meet"} this threshold (self-reported; not a spirometry record).'
+    elif key=='f508del_copies':
+        need=f508del_minimum_copies(t)
+        have={'Two copies':2,'One copy':1,'None':0}.get(value)
+        if need is not None and have is not None:
+            good=have>=need
+            status='met' if good else 'not_met'
+            explanation=f'Reported {value.lower()} of F508del {"satisfies" if good else "does not satisfy"} the required genotype (self-reported; not a genetic report).'
+        else:status='unknown'
+    elif key=='cftr_modulator_use':
+        if value in {'Yes','No'}:
+            status='met' if value=='Yes' else 'not_met'
+            explanation=('Current CFTR modulator use was reported (self-reported; not verified).' if value=='Yes'
+                         else 'No current CFTR modulator use was reported (self-reported; not verified).')
+        else:status='unknown'
     elif key=='cftr_result':
         status='clinical_review'
         explanation='The specific CFTR variant and trial requirement need clinician or study-team interpretation.'

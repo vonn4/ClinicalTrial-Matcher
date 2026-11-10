@@ -16,6 +16,8 @@ def extract_criteria(text: str) -> list[Criterion]:
             kind=match.group(1).lower();line=match.group(2)
         line=re.sub(r'^(?:[-*•]\s*|\d+[.)]\s*)','',line).strip()
         if not line or line.lower() in {'inclusion','exclusion','criteria'}:continue
+        # Short label-only lines such as "Part A:" carry no requirement of their own.
+        if re.fullmatch(r'[^.;]{1,40}:',line) and len(line.split())<=5:continue
         n=1+sum(c.kind==kind for c in criteria)
         criteria.append(Criterion(id=f'{"IN" if kind=="inclusion" else "EX"}-{n}',kind=kind,
                                   text=line,source_text=line))

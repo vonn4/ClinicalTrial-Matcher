@@ -56,7 +56,7 @@ function AnswerEditor({question,saved,busy,onSave}:{question:FollowupQuestion,sa
         : <input id={`value-${question.fact_key}`} value={value} disabled={busy}
             type={question.input_type==='number'?'number':'text'} min={question.input_type==='number'?0:undefined}
             max={question.input_type==='number'?120:undefined} maxLength={180}
-            placeholder={question.input_type==='number'?'Age in years':'Only what is known; do not guess'}
+            placeholder={question.input_type==='number'?'Whole number':'Only what is known; do not guess'}
             onChange={e=>setValue(e.target.value)}/>
       }
     </>}
