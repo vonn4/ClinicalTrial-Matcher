@@ -14,6 +14,9 @@ from .budget import AgentBudget
 from .model_errors import explain_model_error
 
 SAFE_ALIASES = {
+    # NIH MedlinePlus Genetics lists Bassen-Kornzweig syndrome as a synonym.
+    'abetalipoproteinemia': ['Bassen-Kornzweig Syndrome'],
+    'bassen-kornzweig syndrome': ['Abetalipoproteinemia'],
     'non-small cell lung cancer': ['NSCLC'],
     'nsclc': ['non-small cell lung cancer'],
     'sickle cell disease': ['sickle cell anemia'],
