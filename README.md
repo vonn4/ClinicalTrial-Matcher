@@ -1,3 +1,15 @@
+## MVP 2.2 — Cleaner results and model troubleshooting
+
+**Review branch:** `feat/mvp-2.2-retrieval-model-ux` ([PR #13](https://github.com/vonn4/ClinicalTrial-Matcher/pull/13)). The app now explains which disease name was matched in the study's official record, recognizes only documented rare-disease synonyms, and distinguishes broad registries from disease-specific studies. Broad indexing alone no longer makes a study a direct match. The AI execution trace reports safe failure categories and HTTP status instead of presenting failed Gemini calls as successful reviews. Extra MVP labels and repeated explanations have been removed; optional charts are collapsible.
+
+**Troubleshoot on Windows:**
+```powershell
+python run_local.py --list-ai-models
+```
+This read-only request lists the models accessible to your local key. If your configured IDs are absent, use `python configure_local_ai.py --analysis-model MODEL_ID --profile-model MODEL_ID` with IDs you have verified support your project's **free-tier quota**. Restart `python run_local.py`, recheck `--check-ai`, and, only after confirming billing is disabled, run `python run_local.py --probe-ai --confirm-free-tier`. The probe consumes real quota.
+
+**Full rationale, setup and acceptance checks:** [MVP 2.2 retrieval and Gemini diagnostics](docs/MVP_2_2_RETRIEVAL_AI_CHECKS.md). Only fictional patient profiles; never commit or share your private `.env`.
+
 ## MVP 2.1 — five-agent integration hardening
 
 **Current testing branch:** \`feat/mvp-2.1-end-to-end-hardening\`, draft [PR #12](https://github.com/vonn4/ClinicalTrial-Matcher/pull/12).
