@@ -161,4 +161,4 @@ def test_model_probe_requires_explicit_free_tier_confirmation(tmp_path):
     cp = subprocess.run([sys.executable, str(script), "--probe-ai"],
                         capture_output=True, text=True, timeout=10)
     assert cp.returncode != 0
-    assert "--confirm-free-tier" in cp.stderr
+    assert "--confirm-api-usage" in cp.stderr
