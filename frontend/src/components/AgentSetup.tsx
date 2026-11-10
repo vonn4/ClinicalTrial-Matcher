@@ -9,8 +9,10 @@ interface Props{
   token:string;
   onTokenChange:(token:string)=>void;
   disabled:boolean;
+  maxStudies:number;
+  onMaxStudiesChange:(value:number)=>void;
 }
-export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disabled}:Props){
+export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disabled,maxStudies,onMaxStudiesChange}:Props){
   const [capabilities,setCapabilities]=useState<AgentCapabilities|null>(null);
   const [error,setError]=useState('');
   useEffect(()=>{
@@ -37,7 +39,17 @@ export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disa
     {error?<p className="agent-readiness-warning" role="status">{error}. Tool-only analysis is available.</p>
       :capabilities===null?<p className="agent-readiness-note" role="status">Checking the backend model configuration…</p>
       :ready?<p className="agent-readiness-note"><ShieldCheck size={14}/> {capabilities.model_provider} ({capabilities.analysis_model}) configured. Model access is not yet verified; the trace reports actual calls.</p>
-      :<p className="agent-readiness-warning"><Info size={14}/> {capabilities.model_provider} unavailable: {capabilities.model_readiness_message}. Run <code>python configure_openai.py --enable</code> in Terminal 2, then restart.</p>}
+      :<p className="agent-readiness-warning"><Info size={14}/> {capabilities.model_provider} unavailable: {capabilities.model_readiness_message}. Check the selected provider and restart the backend after updating its configuration.</p>}
+    {depth==='model'&&ready&&<div className="agent-token">
+      <label htmlFor="model-study-count">Studies for full AI analysis</label>
+      <select id="model-study-count" value={maxStudies} disabled={disabled}
+        onChange={e=>onMaxStudiesChange(Number(e.target.value))}>
+        <option value={1}>1 study — recommended for CPU</option>
+        <option value={2}>2 studies — slower</option>
+        <option value={3}>3 studies — may take several minutes</option>
+      </select>
+      <span>Other discovered studies remain visible, but only this many receive full Analyst/Skeptic review.</span>
+    </div>}
     {depth==='model'&&ready&&<div className="agent-token">
       <label htmlFor="matching-team-token">Local team access token</label>
       <input id="matching-team-token" type="password" autoComplete="off"
