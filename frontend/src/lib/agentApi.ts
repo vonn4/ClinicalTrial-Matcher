@@ -24,7 +24,8 @@ export interface AgentResult {
   notice:string;
 }
 export type AgentDepth = 'tools'|'model';
-export interface AgentSettings {depth:AgentDepth; token:string}
+export interface MatchingProgress {phase:string;completed:number;total:number;status:'running'|'complete'|'failed';elapsed_seconds:number}
+export interface AgentSettings {depth:AgentDepth; token:string; maxStudies?:number}
 export interface AgentCapabilities {
   agent_roles:AgentTrace['agent'][];
   tools_available:boolean;
@@ -48,9 +49,9 @@ export async function getAgentCapabilities():Promise<AgentCapabilities>{
   }finally{clearTimeout(timeout);}
 }
 
-async function request<T>(path:string,body:object,token:string):Promise<T> {
+async function request<T>(path:string,body:object,token:string,timeoutMs=120000):Promise<T> {
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),120000);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try {
     const response=await fetch(`${API_BASE}${path}`,{
       method:'POST',signal:controller.signal,
@@ -65,9 +66,16 @@ async function request<T>(path:string,body:object,token:string):Promise<T> {
     return await response.json() as T;
   }finally{clearTimeout(timer);}
 }
-export function runFiveAgents(profile:PatientProfile,mode:Mode,settings:AgentSettings):Promise<AgentResult>{
-  return request('/api/v1/matching/analyze',{profile,mode,depth:settings.depth,max_studies:3},settings.token);
+export function runFiveAgents(profile:PatientProfile,mode:Mode,settings:AgentSettings,runId?:string):Promise<AgentResult>{
+  return request('/api/v1/matching/analyze',{profile,mode,depth:settings.depth,max_studies:settings.depth==='model'?Math.min(3,Math.max(1,settings.maxStudies??1)):3,run_id:runId},settings.token,settings.depth==='model'?600000:120000);
 }
 export function clarifyFiveAgents(profile:PatientProfile,mode:Mode,study_ids:string[],updates:Record<string,IntakeAnswer>,settings:AgentSettings):Promise<AgentResult>{
-  return request('/api/v1/matching/clarify',{profile,mode,depth:settings.depth,max_studies:Math.min(3,study_ids.length),study_ids,updates},settings.token);
+  return request('/api/v1/matching/clarify',{profile,mode,depth:settings.depth,max_studies:Math.min(3,study_ids.length),study_ids,updates},settings.token,settings.depth==='model'?600000:120000);
+}
+
+/** Polls only stage metadata; no patient facts are stored by this endpoint. */
+export async function getMatchingProgress(runId:string):Promise<MatchingProgress>{
+  const response=await fetch(`${API_BASE}/api/v1/matching/progress/${encodeURIComponent(runId)}`,{cache:'no-store'});
+  if(!response.ok)throw new Error(`Progress unavailable (${response.status})`);
+  return await response.json() as MatchingProgress;
 }
