@@ -15,7 +15,9 @@ def fake_configuration(tmp_path, monkeypatch):
     (tmp_path/".env").write_text(
         "ENABLE_LIVE_AI=true\n"
         "GEMINI_API_KEY=" + "A" * 35 + "\n"
-        "LIVE_AI_ACCESS_TOKEN=" + "T" * 25 + "\n"\n        "GEMINI_MODEL=gemini-2.5-flash\n", 
+        "LIVE_AI_ACCESS_TOKEN=" + "T" * 25 + "\n"
+        "GEMINI_MODEL=gemini-2.5-flash\n",
+        
         encoding="utf-8")
     return tmp_path
 
