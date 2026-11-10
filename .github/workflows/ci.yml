@@ -25,6 +25,8 @@ jobs:
         env:
           ENABLE_LIVE_AI: 'false'
         run: python -m pytest -q backend/tests
+      - name: Validate synthetic prompt-injection probe input (no model calls)
+        run: python evaluation/security_tests/run_local_probes.py --dry-run
   frontend:
     runs-on: ubuntu-latest
     steps:
