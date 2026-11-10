@@ -83,11 +83,11 @@ export default function TrialFollowups({plan,loading,submitting,error,answers,ch
   return <section className="panel trial-followups" aria-label="Trial-specific follow-up questions">
     <div className="followup-heading">
       <div>
-        <div className="section-eyebrow"><CircleHelp size={15}/> SHARED TRIAL QUESTIONS · MVP 1.5-C</div>
-        <h2>Questions that could clarify your trial matches</h2>
-        <p>Provide an answer once. Every linked trial is reviewed independently against its exact original requirement.</p>
+        
+        <h2>Questions to clarify</h2>
+        <p>One answer can update several studies.</p>
       </div>
-      <span className="followup-phase-tag">Rule-based refresh</span>
+      
     </div>
     {loading&&<p className="followup-status">Loading study criteria and initial rule-based review…</p>}
     {error&&<div className="intake-error" role="alert"><Info size={16}/> {error}. Existing trial information remains available.</div>}
