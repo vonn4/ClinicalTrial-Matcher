@@ -16,7 +16,7 @@ def explain_model_error(exc: Exception) -> dict[str, str | int]:
             429:('quota_exceeded','Gemini quota was exhausted; check your project free-tier limits.'),
             500:('provider_error','Gemini service returned a server error.'),
             502:('provider_error','Gemini service returned a server error.'),
-            503:('provider_unavailable','Gemini service is temporarily unavailable.'),
+            503:('provider_unavailable','Gemini service is temporarily overloaded (HTTP 503). This is a Google-side failure; retry later or select another verified free-tier model in your local .env. No paid fallback is used.'),
         }
         category, message = reasons.get(code,('provider_http_error','Gemini request failed.'))
         return {'model_error':category,'model_http_status':code,'model_help':message}
