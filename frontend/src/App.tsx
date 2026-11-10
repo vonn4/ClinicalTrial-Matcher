@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from 'react';
-import {Activity,ArrowRight,BarChart3,Bookmark,BookOpen,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,Sparkles,X} from 'lucide-react';
+import {Activity,ArrowRight,BarChart3,Bookmark,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,X} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
 import type {Analysis,CriterionDelta,FollowupPlan,IntakeAnswer,IntakeSubmission,Mode,Page,PatientProfile,ReassessmentResponse,Status,Summary,Trial,TrialAssessment} from './types';
 
