@@ -57,6 +57,28 @@ def requires_approval_age_review(criterion: Criterion) -> bool:
     ))
 
 
+def contradicts_explicit_age_bound(profile: PatientProfile, criterion: Criterion, status: str) -> bool:
+    """Reject model outcomes opposite a simple, explicitly numeric age exclusion.
+
+    Conservative: only one-clause exclusion phrases are interpreted. Complex
+    protocols and clinician-defined thresholds must stay unresolved.
+    """
+    if criterion.kind != 'exclusion' or profile.age is None or status not in {'met','not_met'}:
+        return False
+    source = criterion.source_text.strip().lower()
+    if len(source) > 110 or ';' in source or re.search(r'\b(?:and|or|unless|except)\b', source):
+        return False
+    younger = re.search(r'\b(?:younger than|under|below|less than)\s+(\d{1,3})\s*(?:years?|yo)?\b', source)
+    older = re.search(r'\b(?:older than|over|above|greater than)\s+(\d{1,3})\s*(?:years?|yo)?\b', source)
+    if younger:
+        applies = profile.age < int(younger.group(1))
+    elif older:
+        applies = profile.age > int(older.group(1))
+    else:
+        return False
+    return (status == 'met') != applies
+
+
 def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criterion],batch:JudgmentBatch)->list[CriterionAssessment]:
     # Materialize one result for EVERY source criterion. Missing, duplicate, or fabricated
     # source/patient evidence can never silently become a positive finding.
@@ -78,17 +100,18 @@ def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criter
         # or any other age, without a verified numeric cutoff. Do not let a
         # fluent explanation or a quoted age produce a false exclusion flag.
         ambiguous_age = requires_approval_age_review(c)
-        if ambiguous_age and status in {'met','not_met'}:
+        contradictory_age = contradicts_explicit_age_bound(profile, c, status)
+        if (ambiguous_age or contradictory_age) and status in {'met','not_met'}:
             status='clinical_review'
         triggered=None
         if c.kind=='exclusion' and item and valid and status in {'met','not_met'}:
             # Derive from status, never trust an inconsistent model flag.
             triggered=status=='met'
         results.append(CriterionAssessment(criterion_id=c.id,status=status,exclusion_triggered=triggered,
-            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
-            patient_evidence=[] if ambiguous_age else item.patient_evidence if item and valid else [],
-            question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else item.question_for_doctor if item and valid else None,
-            verified_evidence=valid and not ambiguous_age))
+            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else 'Model conclusion contradicts the explicit patient-age threshold; manual review required.' if contradictory_age else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
+            patient_evidence=[] if ambiguous_age or contradictory_age else item.patient_evidence if item and valid else [],
+            question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else 'Does the stated age cutoff apply to this patient?' if contradictory_age else item.question_for_doctor if item and valid else None,
+            verified_evidence=valid and not (ambiguous_age or contradictory_age)))
     return results
 
 def aggregate(criteria:list[Criterion],primary:list[CriterionAssessment],skeptic:list[SkepticFinding])->tuple[str,list[str]]:
