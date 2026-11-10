@@ -4,6 +4,7 @@ from ..schemas import PatientProfile, TrialRecord, TrialAssessment, SkepticFindi
 from ..study_criteria import criteria_for_trial, verifies_original_criterion
 from .analyst_agent import model_judgment
 from .budget import AgentBudget
+from .model_errors import explain_model_error
 
 async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: list[TrialAssessment],
                   *, model: bool, budget: AgentBudget):
@@ -12,6 +13,7 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
     checked = 0
     disputes = 0
     failed = 0
+    first_error:dict = {}
     for trial in trials:
         current = by_id[trial.nct_id]
         # Model skeptic sees original facts+requirements ONLY. Primary results
@@ -20,7 +22,8 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
         if model and current.provenance == 'live_llm':
             try:
                 independently = await model_judgment(profile, trial, budget, skeptic=True)
-            except Exception:
+            except Exception as exc:
+                if not first_error: first_error = explain_model_error(exc)
                 # Do not erase earlier completed independent reviews. A missing
                 # skeptic response is not equivalent to agreement with the analyst.
                 failed += 1
@@ -56,4 +59,5 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
         reconciled.append(result)
         checked += 1
     return reconciled, {'model_invoked': checked > 0, 'independent_trials': checked,
-                        'model_failures': failed, 'disagreements': disputes, 'source_verified_trials': len(trials)}
+                        'model_failures': failed, 'disagreements': disputes, 'source_verified_trials': len(trials),
+                        **first_error}
