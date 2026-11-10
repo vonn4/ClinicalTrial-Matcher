@@ -29,7 +29,9 @@ class AgentBudget:
         provider = os.getenv('AI_PROVIDER', 'gemini').strip().lower()
         if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes','on'}:
             raise ModelUnavailable('ENABLE_LIVE_AI=true is required')
-        if provider == 'openai':
+        if provider == 'ollama':
+            pass  # Loopback inference requires no API key or billable opt-in.
+        elif provider == 'openai':
             if not os.getenv('OPENAI_API_KEY','').strip():
                 raise ModelUnavailable('OPENAI_API_KEY is required')
             if os.getenv('OPENAI_ALLOW_BILLABLE','').strip().lower() not in {'true','1','yes','on'}:
