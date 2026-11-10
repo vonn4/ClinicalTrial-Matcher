@@ -77,6 +77,9 @@ async function mockedBackend(page:Page, collected:{depth:string,token:string}[],
           model_failures:1,model_error:'model_unavailable',model_http_status:404,
           model_help:'This model is not available to this project; check available models.'
         }};
+        run.trace[3]={...run.trace[3],execution:'tools',model_calls:0,details:{
+          independent_trials:0
+        }};
       }
       payload=run;
     }else if(path==='/api/v1/intake/questions'){
