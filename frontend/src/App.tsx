@@ -30,7 +30,7 @@ function getStorage():string[]{try{const ids=JSON.parse(localStorage.getItem('ct
 
 function DashboardHeader({connection}:{connection:string}){
   return <div className="top-header">
-    <div><div className="crumb">RESEARCH PLATFORM <ChevronRight size={12}/> CLINICAL TRIAL DISCOVERY</div><h1>Trial discovery, with evidence.</h1><p>From a patient story to traceable research opportunities.</p></div>
+    <div><div className="crumb">CLINICAL TRIAL DISCOVERY</div><h1>Find clinical trials</h1><p>Search real studies and review the evidence behind each result.</p></div>
     <div className="header-side"><span className="live-dot"/><span>Official ClinicalTrials.gov</span><span className="header-sep"/> <span className="status-sub">{connection}</span></div>
   </div>;
 }
@@ -53,14 +53,15 @@ function Sidebar({page,setPage,savedCount}:{page:Page;setPage:(p:Page)=>void;sav
     <nav>{items.map(it=><button key={it.id} className={'nav-link '+(page===it.id?'active':'')} onClick={()=>setPage(it.id as Page)}>{it.icon}<span>{it.label}</span>{it.id==='saved'&&savedCount>0&&<span className="nav-count">{savedCount}</span>}</button>)}</nav>
     <div className="sidebar-spacer"/>
     <div className="sidebar-card"><div className="sidebar-card-head"><ShieldCheck size={16}/> EVIDENCE-FIRST AI</div><p>Every assessment should point to original trial criteria. Unknown is never assumed eligible.</p><div className="sidebar-signal"><span className="live-dot"/> Research prototype</div></div>
-    <div className="sidebar-footer">HACKAROO 2026 <span>•</span> v0.1</div>
+    <div className="sidebar-footer">HACKAROO 2026</div>
   </aside>;
 }
 function TrialCard({trial,assessment,selected,saved,onSelect,onSave}:{trial:Trial;assessment?:TrialAssessment;selected:boolean;saved:boolean;onSelect:()=>void;onSave:()=>void}){
   return <div className={'trial-card '+(selected?'selected':'')}>
     <div className="trial-card-top"><span className="trial-id">{trial.nct_id}</span><span className="study-source">OFFICIAL STUDY</span><button className={'icon-button save-icon '+(saved?'saved':'')} title={saved?'Remove from saved':'Save trial'} onClick={onSave}><Bookmark size={16} fill={saved?'currentColor':'none'}/></button></div>
     <button className="trial-title-button" onClick={onSelect}>{trial.title}<ChevronRight size={17}/></button>
-    <div className="trial-tags"><span className="pill"><span className="small-dot"/>{trial.status.replaceAll('_',' ')}</span><span className="pill">{trial.phase.join(', ').replaceAll('_',' ')||'Phase unspecified'}</span></div>
+    <div className="trial-tags"><span className="pill"><span className="small-dot"/>{trial.status.replaceAll('_',' ')}</span><span className="pill">{trial.phase.join(', ').replaceAll('_',' ')||'Phase unspecified'}</span>{trial.broad_registry&&<span className="pill">Broad registry</span>}</div>
+    {trial.match_explanation&&<p className="trial-match-reason"><Info size={13}/>{trial.match_explanation}</p>}
     <div className="trial-card-meta"><MapPin size={14}/><span>{trial.locations[0]||'Location not listed'}</span></div>
     <div className="trial-card-bottom"><SummaryBadge summary={assessment?.summary}/><button className="text-link" onClick={onSelect}>Review <ArrowRight size={14}/></button></div>
   </div>;
@@ -73,7 +74,8 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
   const counts={inclusion:pairs.filter(x=>x.c.kind==='inclusion').length,exclusion:pairs.filter(x=>x.c.kind==='exclusion').length,unknown:pairs.filter(x=>x.a?.status==='unknown'||x.a?.status==='clinical_review').length};
   return <div className="detail-panel">
     <div className="section-eyebrow"><FlaskConical size={14}/> EVIDENCE REVIEW</div><h2>{trial.title}</h2>
-    <div className="detail-meta"><span>{trial.source==='clinicaltrials.gov'?'ClinicalTrials.gov · official record':'Fictional demonstration'}</span><span>•</span><span>{trial.nct_id}</span><span>•</span><span>{trial.status.replaceAll('_',' ')}</span>{trial.updated&&<><span>•</span><span>Updated {trial.updated}</span></>}</div>
+    <div className="detail-meta"><span>ClinicalTrials.gov study</span><span>•</span><span>{trial.nct_id}</span><span>•</span><span>{trial.status.replaceAll('_',' ')}</span>{trial.updated&&<><span>•</span><span>Updated {trial.updated}</span></>}</div>
+    {trial.match_explanation&&<div className="trial-match-detail"><Info size={15}/><div><strong>Why this study appeared</strong><p>{trial.match_explanation}{trial.broad_registry?' This is a broad registry, not necessarily a disease-specific trial; confirm its separate eligibility criteria.':''}</p></div></div>}
     <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?.summary==='clinical_review'?'A requirement needs expert interpretation or independent screening; not confirmed eligible.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
     {assessment?<>
       <div className="mini-stats"><span><b>{counts.inclusion}</b> Inclusion</span><span><b>{counts.exclusion}</b> Exclusion</span><span><b>{counts.unknown}</b> Unresolved</span></div>
@@ -250,28 +252,26 @@ export default function App(){
     finally{setBusy(false);}
   }
   return <div className="app-shell"><Sidebar page={page} setPage={setPage} savedCount={saved.length}/><main className="main-content"><DashboardHeader connection={connection}/>
-    <div className="safety-banner"><div><ShieldCheck size={17}/><strong>Research demonstration</strong><span>•</span> Synthetic patient data only. No medical advice or eligibility determination.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
-    {page==='discover'&&<><section className="intro-heading"><div><div className="section-eyebrow"><Sparkles size={15}/> AI-ASSISTED DISCOVERY</div><h2>Start with a patient story.</h2><p>We'll find relevant studies and show exactly what is known, uncertain, or conflicting.</p></div><span className="synthetic-tag">REAL REGISTERED STUDIES</span></section>
-      {mode==='live'&&<div className="registry-banner" role="status"><div><strong>OFFICIAL LIVE STUDIES · FREE PUBLIC DATA</strong><p>Search real studies for any condition, including rare diseases. An AI key is not required for study discovery.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
+    <div className="safety-banner"><div><ShieldCheck size={17}/> Use fictional patient data only. This tool cannot establish eligibility.</div><a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">Data source <ExternalLink size={13}/></a></div>
+    {page==='discover'&&<><section className="intro-heading"><div><h2>Describe a patient</h2><p>We'll search for trials relevant to the condition you enter.</p></div></section>
+      {mode==='live'&&<div className="registry-banner" role="status"><div><strong>ClinicalTrials.gov search</strong><p>Live study records; some results may be broad registries rather than disease-specific trials.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
       <AgentSetup depth={analysisDepth} onDepthChange={setAnalysisDepth}
         token={teamToken} onTokenChange={setTeamToken} disabled={busy||answerBusy}/>
       <div className="intake-method-switch" role="group" aria-label="Profile intake method">
-        <div><strong>How would you like to build the profile?</strong><p>Guided questions help capture important facts without requiring medical-writing expertise.</p></div>
+        <div><strong>Patient details</strong></div>
         <div className="intake-method-buttons">
-          <button className={intakeMode==='guided'?'active':''} onClick={()=>changeIntakeMode('guided')}>Guided intake <span>New</span></button>
+          <button className={intakeMode==='guided'?'active':''} onClick={()=>changeIntakeMode('guided')}>Guided intake</button>
           <button className={intakeMode==='quick'?'active':''} onClick={()=>changeIntakeMode('quick')}>Quick description</button>
         </div>
       </div>
       {intakeMode==='guided'?<GuidedIntake busy={busy} onSearch={runGuidedSearch}/>:<section className="patient-input panel">
-        <div className="input-head"><div><label htmlFor="patient">SYNTHETIC PATIENT DESCRIPTION</label>
-          <p>Describe a fictional patient and their condition. Studies come exclusively from ClinicalTrials.gov.</p></div>
-          <span className="synthetic-tag">SYNTHETIC PATIENT ONLY</span></div>
+        <div className="input-head"><div><label htmlFor="patient">Fictional patient description</label></div></div>
         <textarea id="patient" value={text} onChange={e=>setText(e.target.value)}
           rows={3} maxLength={3000} placeholder="Describe a fictional patient, including their condition, age, relevant medical history, and known test results."/>
       <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy||!text.trim()}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>}
       {error&&<div className="error-alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={15}/></button></div>}
-      {liveSearched&&<div className="live-action"><Info size={17}/><div><strong>Official study discovery completed.</strong>
-         <p>These are registered studies, not proof of eligibility. Complex criteria require clinical review. Model-assisted agent reasoning is available separately with team opt-in.</p>
+      {liveSearched&&analysis.trials.length===0&&<div className="live-action" role="status"><Info size={17}/><div><strong>No directly documented studies found for {analysis.profile.diagnosis}.</strong>
+         <p>Some broader indexed results may exist, but we do not present them as confirmed disease matches. Try a recognized diagnosis or synonym.</p>
        </div></div>}
        <AgentWorkflow result={agentResult}/>
       <div className="metrics-grid"><Metric icon={<Search size={19}/>} label="Trials retrieved" value={analysis.trials.length} sub="Candidate studies"/><Metric icon={<ClipboardList size={19}/>} label="Studies reviewed" value={displayedAssessments.length} sub="Partial criterion checks; not clinical screening"/><Metric icon={<Info size={19}/>} label="Need information" value={unresolved} sub="Unknown or review required"/><Metric icon={<CircleAlert size={19}/>} label="Eligibility conflicts" value={conflict} sub="Preliminary, not final" kind="warn"/></div>
@@ -282,8 +282,8 @@ export default function App(){
          plan={followupPlan} loading={followupBusy} submitting={answerBusy} error={followupError}
         answers={review?.profile.followup_answers||{}} changed={changedCriteria}
         onSelectTrial={selectTrial} onAnswer={answerFollowup}/>
-      <div className="results-head"><div><div className="section-eyebrow"><BookOpen size={14}/> EXPLORE RESULTS</div><h2>Candidate trial studies <span>({visible.length})</span></h2></div><div className="result-tools"><div className="search-small"><Search size={15}/><input placeholder="Filter studies..." value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="filter-box"><Filter size={14}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="unresolved">Needs info</option><option value="conflict">Conflicts</option><option value="unassessed">Not assessed</option></select></div></div></div>
-      <div className="results-grid"><div className="trial-list">{visible.length?visible.map(t=><TrialCard key={t.nct_id} trial={t} assessment={statusMap.get(t.nct_id)} selected={selected===t.nct_id} saved={saved.includes(t.nct_id)} onSelect={()=>setSelected(t.nct_id)} onSave={()=>toggleSaved(t.nct_id)}/>):<div className="large-empty"><Search size={24}/><p>No studies match the current filter.</p></div>}</div><div className="panel detail-container"><EligibilityDetail trial={selectedTrial} assessment={selectedAssessment}/></div></div>
+      <div className="results-head"><div><h2>Study results <span>({visible.length})</span></h2></div><div className="result-tools"><div className="search-small"><Search size={15}/><input placeholder="Filter studies..." value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="filter-box"><Filter size={14}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="unresolved">Needs info</option><option value="conflict">Conflicts</option><option value="unassessed">Not assessed</option></select></div></div></div>
+      <div className="results-grid"><div className="trial-list">{visible.length?visible.map(t=><TrialCard key={t.nct_id} trial={t} assessment={statusMap.get(t.nct_id)} selected={selected===t.nct_id} saved={saved.includes(t.nct_id)} onSelect={()=>setSelected(t.nct_id)} onSave={()=>toggleSaved(t.nct_id)}/>):<div className="large-empty"><Search size={24}/><p>{liveSearched&&!analysis.trials.length?'No studies with documented condition links found.':'No studies match your filters.'}</p></div>}</div><div className="panel detail-container"><EligibilityDetail trial={selectedTrial} assessment={selectedAssessment}/></div></div>
       <div className="source-note"><Info size={15}/>{agentResult?.trace.some(x=>x.agent==='skeptic'&&x.execution==='model')?'Independent AI skeptic review was executed; all findings remain preliminary and need clinical verification.':'Official registry studies; tool-only criterion checks do not include independent model verification. Model analysis requires explicit team opt-in.'}</div>
     </>}
     {page==='saved'&&<SavedView trials={analysis.trials} assessments={displayedAssessments} saved={saved} setSaved={setSaved} onSelect={selectTrial}/>}
