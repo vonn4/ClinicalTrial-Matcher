@@ -135,3 +135,27 @@ def test_remote_ollama_endpoint_is_rejected_without_network(monkeypatch):
         assert 'loopback' in str(exc).lower()
     else:
         raise AssertionError('Remote inference endpoint must not be allowed')
+
+def test_local_ollama_repeat_calls_ignore_cloud_hourly_quota(monkeypatch):
+    """No externally imposed per-hour API budget for local inference; 9/run remains."""
+    from app.agents.budget import AgentBudget, AgentBudgetExceeded
+    monkeypatch.setenv('AI_PROVIDER','ollama')
+    monkeypatch.setenv('ENABLE_LIVE_AI','true')
+    monkeypatch.setenv('MAX_AGENT_MODEL_CALLS_PER_HOUR','1')
+    calls=[]
+    async def fake(**kwargs):
+        calls.append(kwargs)
+        return {'ok':True}
+    monkeypatch.setattr('app.agents.budget.generate_json',fake)
+    async def run():
+        budget=AgentBudget(maximum=2)
+        for _ in range(2):
+            assert await budget.generate(model='qwen3:4b',system='test',payload={}) == {'ok':True}
+        try:
+            await budget.generate(model='qwen3:4b',system='test',payload={})
+        except AgentBudgetExceeded:
+            pass
+        else:
+            raise AssertionError('Per-run cap must still stop a third model call')
+    asyncio.run(run())
+    assert len(calls)==2
