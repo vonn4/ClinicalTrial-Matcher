@@ -84,6 +84,8 @@ class TrialRecord(BaseModel):
     match_type: Literal['listed_condition','documented_synonym','text_mention'] | None = None
     match_explanation: str = ''
     broad_registry: bool = False
+    location_fit: Literal['preferred_city','preferred_state','other_location','unknown'] = 'unknown'
+    location_explanation: str = ''
     @field_validator('nct_id')
     @classmethod
     def validate_id(cls,v: str) -> str:

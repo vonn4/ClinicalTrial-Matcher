@@ -62,7 +62,8 @@ function TrialCard({trial,assessment,selected,saved,onSelect,onSave}:{trial:Tria
     <button className="trial-title-button" onClick={onSelect}>{trial.title}<ChevronRight size={17}/></button>
     <div className="trial-tags"><span className="pill"><span className="small-dot"/>{trial.status.replaceAll('_',' ')}</span><span className="pill">{trial.phase.join(', ').replaceAll('_',' ')||'Phase unspecified'}</span>{trial.broad_registry&&<span className="pill">Broad registry</span>}</div>
     {trial.match_explanation&&<p className="trial-match-reason"><Info size={13}/>{trial.match_explanation}</p>}
-    <div className="trial-card-meta"><MapPin size={14}/><span>{trial.locations[0]||'Location not listed'}</span></div>
+    <div className="trial-card-meta"><MapPin size={14}/><span>{trial.locations.find(loc=>trial.location_explanation?.includes(loc))||trial.locations[0]||'Location not listed'}</span></div>
+    {trial.location_explanation&&<p className="trial-match-reason"><MapPin size={13}/>{trial.location_explanation}</p>}
     <div className="trial-card-bottom"><SummaryBadge summary={assessment?.summary}/><button className="text-link" onClick={onSelect}>Review <ArrowRight size={14}/></button></div>
   </div>;
 }
@@ -75,6 +76,7 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
   return <div className="detail-panel">
     <div className="section-eyebrow"><FlaskConical size={14}/> EVIDENCE REVIEW</div><h2>{trial.title}</h2>
     <div className="detail-meta"><span>ClinicalTrials.gov study</span><span>•</span><span>{trial.nct_id}</span><span>•</span><span>{trial.status.replaceAll('_',' ')}</span>{trial.updated&&<><span>•</span><span>Updated {trial.updated}</span></>}</div>
+    {trial.location_explanation&&<div className="trial-match-detail"><MapPin size={15}/><div><strong>Location preference</strong><p>{trial.location_explanation}</p></div></div>}
     {trial.match_explanation&&<div className="trial-match-detail"><Info size={15}/><div><strong>Why this study appeared</strong><p>{trial.match_explanation}{trial.broad_registry?' This is a broad registry, not necessarily a disease-specific trial; confirm its separate eligibility criteria.':''}</p></div></div>}
     <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?.summary==='clinical_review'?'A requirement needs expert interpretation or independent screening; not confirmed eligible.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
     {assessment?<>

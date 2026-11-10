@@ -24,6 +24,7 @@ export interface Trial {
   source:'clinicaltrials.gov'|'synthetic_fixture'; relevance_score: number; retrieved_at: string|null;
   match_type?:'listed_condition'|'documented_synonym'|'text_mention'|null;
   match_explanation?:string; broad_registry?:boolean;
+  location_fit?:'preferred_city'|'preferred_state'|'other_location'|'unknown'; location_explanation?:string;
 }
 export interface Criterion { id: string; kind: 'inclusion'|'exclusion'; text: string; source_text: string }
 export interface Assessment { criterion_id: string; status: Status; exclusion_triggered:boolean|null; explanation:string; patient_evidence:string[];question_for_doctor:string|null;verified_evidence:boolean }

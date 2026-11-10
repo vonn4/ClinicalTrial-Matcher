@@ -28,8 +28,8 @@ SETTINGS = (
     "MAX_LIVE_AI_REQUESTS_PER_HOUR",
 )
 DEFAULTS = {
-    "GEMINI_MODEL": "gemini-2.5-flash",
-    "GEMINI_PROFILE_MODEL": "gemini-2.5-flash-lite",
+    "GEMINI_MODEL": "gemini-3.5-flash",
+    "GEMINI_PROFILE_MODEL": "gemini-3.5-flash-lite",
     "MAX_AGENT_MODEL_CALLS_PER_HOUR": "24",
     "MAX_LIVE_AI_REQUESTS_PER_HOUR": "12",
 }

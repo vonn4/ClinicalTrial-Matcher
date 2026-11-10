@@ -182,8 +182,8 @@ def list_available_models() -> None:
     supported = sorted({str(m.get('name','')).removeprefix('models/')
         for m in items if 'generateContent' in m.get('supportedGenerationMethods',[])
         and str(m.get('name','')).startswith('models/gemini-')})
-    configured = (local.get('GEMINI_PROFILE_MODEL','gemini-2.5-flash-lite'),
-                  local.get('GEMINI_MODEL','gemini-2.5-flash'))
+    configured = (local.get('GEMINI_PROFILE_MODEL','gemini-3.5-flash-lite'),
+                  local.get('GEMINI_MODEL','gemini-3.5-flash'))
     print('Models supporting generateContent for this API key:')
     for name in supported:
         print(' ',name)
@@ -236,6 +236,76 @@ def probe_provider_models() -> None:
 
     asyncio.run(check())
 
+
+
+def smoke_live_agent_workflow(backend_url: str) -> None:
+    """Opt-in single-command live smoke test against one public NCT study.
+
+    Makes REAL Gemini requests using only a fictional profile and the local
+    server-side team token. Does not print credentials, payloads or patient facts.
+    Requires a running backend and explicit user free-tier confirmation.
+    """
+    verify_model_readiness(backend_url)
+    local = load_env(ROOT / '.env')
+    caps = request_json(f'{backend_url}/api/v1/matching/capabilities')
+    if (caps.get('profile_model') != local.get('GEMINI_PROFILE_MODEL', 'gemini-3.5-flash-lite')
+        or caps.get('analysis_model') != local.get('GEMINI_MODEL', 'gemini-3.5-flash')):
+        raise RuntimeError(
+            'Running backend is using different model IDs than .env. Restart python run_local.py first.'
+        )
+    profile = request_json(f'{backend_url}/api/v1/intake/profile', {
+        'synthetic': True,
+        'answers': {
+            'condition': {'state': 'answered', 'value': 'Cystic fibrosis'},
+            'diagnosis_confirmation': {'state': 'answered', 'value': 'Confirmed'},
+            'age': {'state': 'answered', 'value': '27'},
+            'cftr_result': {'state': 'unknown', 'value': None},
+            'location': {'state': 'answered', 'value': 'Seattle, Washington'},
+            'travel': {'state': 'answered', 'value': 'Within 250 miles'},
+        },
+        'narrative': 'Entirely fictional CF research profile. Unknown genetic status; no clinical eligibility is presumed.',
+    })
+    payload = {
+        'mode': 'live', 'depth': 'model', 'max_studies': 1,
+        'study_ids': ['NCT06429176'], 'profile': profile,
+    }
+    token = local.get('LIVE_AI_ACCESS_TOKEN', '')
+    if len(token) < 16:
+        raise RuntimeError('Local team token missing; run configure_local_ai.py.')
+    req = Request(
+        f'{backend_url}/api/v1/matching/analyze',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'X-Live-Access-Token': token},
+        method='POST',
+    )
+    with urlopen(req, timeout=245) as response:
+        result = json.load(response)
+    stages = {stage['agent']: stage for stage in result.get('trace', [])}
+    for name in ('profile', 'discovery', 'analyst', 'skeptic', 'clarification'):
+        stage = stages.get(name)
+        if not stage:
+            raise RuntimeError('Missing agent stage: ' + name)
+        details = stage.get('details', {})
+        print('Stage:', name, '| execution:', stage.get('execution'),
+              '| model calls:', stage.get('model_calls', 0),
+              '| failures:', details.get('model_failures', 0))
+    analyst = stages['analyst'].get('details', {})
+    skeptic = stages['skeptic'].get('details', {})
+    if analyst.get('model_reviewed', 0) < 1 or skeptic.get('independent_trials', 0) < 1:
+        for name in ('analyst', 'skeptic'):
+            info = stages[name].get('details', {})
+            print('Diagnostic:', name, info.get('model_error', 'no completed model review'),
+                  info.get('model_http_status', ''))
+        raise RuntimeError(
+            'Live AI acceptance FAILED: Analyst or independent Skeptic did not complete a review.'
+        )
+    assert result.get('model_calls', 10) <= 9, 'Agent inference call budget exceeded'
+    if not result.get('assessments') or not result['assessments'][0].get('skeptic'):
+        raise RuntimeError('Independent criterion findings missing from response')
+    print('PASS: REAL Gemini Analyst and independent Skeptic completed source-grounded criterion reviews')
+    print('Official NCT study:', result['trials'][0]['nct_id'],
+          '| assessed criteria:', len(result['assessments'][0]['criteria']),
+          '| total model attempts:', result['model_calls'])
 
 def wait_until(url: str, label: str, processes: list[subprocess.Popen], timeout: float = 35) -> None:
     start = time.monotonic()
@@ -303,6 +373,7 @@ def main() -> int:
     parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking Gemini (backend must be running)')
     parser.add_argument('--list-ai-models', action='store_true', help='List model IDs available to your local Gemini key; no inference calls')
     parser.add_argument('--probe-ai', action='store_true', help='OPT-IN: call real Gemini model(s) with a non-patient JSON probe')
+    parser.add_argument('--smoke-ai-workflow', action='store_true', help='OPT-IN: run full five-agent workflow using one fictional patient and live registry study')
     parser.add_argument('--confirm-free-tier', action='store_true', help='Confirm that YOU verified the Google project has an eligible free tier with billing disabled')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
     parser.add_argument('--no-install', action='store_true', help='Fail rather than install missing free dependencies')
@@ -324,6 +395,11 @@ def main() -> int:
             return 0
         if args.list_ai_models:
             list_available_models()
+            return 0
+        if args.smoke_ai_workflow:
+            if not args.confirm_free_tier:
+                raise RuntimeError('Live Gemini workflow test requires --confirm-free-tier after verifying billing is disabled.')
+            smoke_live_agent_workflow(b)
             return 0
         if args.probe_ai:
             if not args.confirm_free_tier:

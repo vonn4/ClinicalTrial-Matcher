@@ -1,3 +1,17 @@
+## MVP 2.3 — Live Analyst/Skeptic and location fixes
+
+**Review branch:** `fix/mvp-2.3-agent-judgments-and-location` ([PR #14](https://github.com/vonn4/ClinicalTrial-Matcher/pull/14)), based on the previously tested MVP 2.2 branch. No earlier branch or local private `.env` is modified.
+
+Gemini Analyst/Skeptic outputs now request a strict JSON schema and use 12-criterion chunks (up to 36 source criteria per study). The backend reserves model-call capacity for the blinded Skeptic, preserving the nine-call cap. When a study is too complex or AI fails, original requirements remain in visibly labeled deterministic clinical review, never silently passed. Location rankings favor registered study sites in the patient's city or state, with clear **distance not verified** messaging; no geocoding or hard mile-radius exclusion is claimed.
+
+**One command to smoke-test real AI (optional, with the server already running):**
+
+```powershell
+python run_local.py --smoke-ai-workflow --confirm-free-tier
+```
+
+This uses only an embedded **fictional** cystic fibrosis patient and an official public NCT study, consumes up to nine real Gemini inference calls, and reports whether Analyst **and** independent Skeptic both completed. Run only after confirming Google free-tier access and **billing disabled**. It never prints the private API key or team token. Unlike GitHub CI, it verifies real provider inference.
+
 ## MVP 2.2 — Cleaner results and model troubleshooting
 
 **Review branch:** `feat/mvp-2.2-retrieval-model-ux` ([PR #13](https://github.com/vonn4/ClinicalTrial-Matcher/pull/13)). The app now explains which disease name was matched in the study's official record, recognizes only documented rare-disease synonyms, and distinguishes broad registries from disease-specific studies. Broad indexing alone no longer makes a study a direct match. The AI execution trace reports safe failure categories and HTTP status instead of presenting failed Gemini calls as successful reviews. Extra MVP labels and repeated explanations have been removed; optional charts are collapsible.
