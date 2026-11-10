@@ -36,3 +36,27 @@ python evaluation/evaluate_agent_ablations.py --labels evaluation/data/labels.cs
 ```
 
 Unreported predictions count as unknown rather than disappearing from denominators. Metrics include exact-status accuracy, decisive coverage, abstention, exclusion-trigger recall, unsafe exclusion clearances and a status confusion table. Report the labels' provenance: team-generated labels must not be described as clinical expert ground truth.
+
+
+## Local Qwen3/Ollama reproducible evidence (2026-11-10)
+
+**A successful browser trace is one demonstration, not an accuracy estimate.** The initial fictional Bardet-Biedl syndrome run showed five stages, two model stages, two model attempts and one official study. The new stage-progress UI reports actual running stages and allows export of **anonymized timing evidence** after completion.
+
+After each actual model-assisted run, use the **Export anonymous timing evidence** button. It saves `clinicaltrial-matcher-run-metrics.json` containing only stage times, counts, public NCT IDs and assessment summary categories. Never upload a real patient profile or `.env`. Gather at least five comparable runs before interpreting median/p95 as stable.
+
+To summarize exported measurements:
+
+```powershell
+python evaluation/summarize_local_runs.py "C:\path\to\clinicaltrial-matcher-run-metrics.json"
+```
+
+To run *synthetic* indirect-injection probes against local Ollama:
+
+```powershell
+python evaluation/security_tests/run_local_probes.py --dry-run
+python evaluation/security_tests/run_local_probes.py --model qwen3:4b --include-skeptic
+```
+
+The real probe sends only fictional text and uses localhost Ollama; it takes 2 calls (or 4 with `--include-skeptic`). It records marker emission and evidence validation, **not** a validated broad prompt-injection success rate. The dry run never sends requests.
+
+Existing `evaluate_agent_ablations.py` and `evaluate_retrieval.py` require actual labels/rankings before they can produce empirical claims. Do not substitute mocked CI outputs for real labels or TREC measurements.

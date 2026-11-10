@@ -1,4 +1,4 @@
-import {AlertTriangle,CheckCircle2,Info,ShieldCheck} from 'lucide-react';
+import {AlertTriangle,CheckCircle2,Download,Info,ShieldCheck} from 'lucide-react';
 import type {AgentResult,AgentTrace} from '../lib/agentApi';
 
 const LABELS:Record<AgentTrace['agent'],string>={
@@ -9,6 +9,37 @@ function failed(stage:AgentTrace):boolean{
   return Number(stage.details.model_failures||0)>0||Number(stage.details.budget_skips||0)>0||
     stage.details.model_fallback===true||(stage.model_calls>0&&stage.execution!=='model');
 }
+function saveRunMetrics(result:AgentResult):void{
+  // Evidence export intentionally contains no patient profile, criteria text,
+  // history, model prompt, browser access token, or private configuration.
+  const data={
+    schema:'clinicaltrial-matcher-metrics-v1',
+    source:'browser_observed_local_run',
+    exported_at:new Date().toISOString(),
+    sample_count:1,
+    model_calls:result.model_calls,
+    ai_assisted_stages:result.trace.filter(t=>t.execution==='model').length,
+    total_stage_ms:Math.round(result.trace.reduce((sum,t)=>sum+t.duration_ms,0)),
+    stages:result.trace.map(t=>({
+      agent:t.agent,execution:t.execution,duration_ms:t.duration_ms,model_calls:t.model_calls,
+      model_failures:typeof t.details.model_failures==='number'?t.details.model_failures:0
+    })),
+    studies:result.assessments.map(a=>({
+      nct_id:a.nct_id,summary:a.summary,criteria_count:a.criteria.length,
+      unresolved_count:a.unresolved.length,skeptic_disagreements:a.skeptic.filter(f=>f.disagreement).length,
+      independent_skeptic_criteria:a.skeptic.length
+    }))
+  };
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const link=document.createElement('a');
+  link.href=url;
+  link.download='clinicaltrial-matcher-run-metrics.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
 export default function AgentWorkflow({result}:{result:AgentResult|null}){
   if(!result)return null;
   const modelStages=result.trace.filter(x=>x.execution==='model').length;
@@ -18,10 +49,13 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
     <div className="agent-workflow-heading"><div>
       <h2>Matching execution trace</h2>
       <p>{result.trace.length} stages completed automatically; AI is optional, and failed calls do not count as completed reviews.</p>
+      <button type="button" className="secondary-button" onClick={()=>saveRunMetrics(result)}>
+        <Download size={14}/> Export anonymous timing evidence
+      </button>
     </div></div>
     <div className="agent-trace">
       <div className="agent-trace-heading"><ShieldCheck size={18}/><strong>Execution summary</strong>
-        <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} matched studies</span></div>
+        <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} matched studies · {(result.trace.reduce((sum,t)=>sum+t.duration_ms,0)/1000).toFixed(1)}s pipeline</span></div>
       {typeof locationStatus==='string'&&<div className="agent-result-note" role="status">
         <Info size={15}/><span><strong>Location search:</strong> {locationStatus}</span>
       </div>}

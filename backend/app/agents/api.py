@@ -1,5 +1,6 @@
 """Public five-agent matching routes with strict model opt-in and no patient persistence."""
 from fastapi import APIRouter, HTTPException, Request
+from uuid import UUID
 import os
 import httpx
 from ..access import require_live_ai
@@ -12,6 +13,7 @@ from ..llm import ModelUnavailable
 from .contracts import AgentRunRequest, AgentRunResponse, AgentClarifyRequest
 from .budget import AgentBudgetExceeded
 from .orchestrator import execute
+from .progress import start_run, finish_run, read_run
 
 router = APIRouter(prefix='/api/v1/matching', tags=['five-agent matching'])
 
@@ -56,16 +58,28 @@ async def _execute(req: AgentRunRequest, request: Request) -> AgentRunResponse:
         if not ready:
             raise HTTPException(status_code=503, detail=f'Model-assisted analysis unavailable: {reason}')
         require_live_ai(request)
+    start_run(req.run_id)
     try:
         return await execute(req,model_authorized=req.depth=='model')
     except AgentBudgetExceeded as exc:
+        finish_run(req.run_id,failed=True)
         raise HTTPException(status_code=429,detail=str(exc)) from exc
     except (ValueError, ) as exc:
+        finish_run(req.run_id,failed=True)
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     except httpx.HTTPError as exc:
+        finish_run(req.run_id,failed=True)
         raise HTTPException(status_code=502,detail='Official clinical-trial registry unavailable; no fictional studies substituted') from exc
     except (ModelUnavailable,) as exc:
+        finish_run(req.run_id,failed=True)
         raise HTTPException(status_code=503,detail=str(exc)) from exc
+
+@router.get('/progress/{run_id}')
+def progress(run_id: UUID):
+    snapshot = read_run(run_id)
+    if snapshot is None:
+        raise HTTPException(404,'Run not found or expired')
+    return snapshot
 
 @router.post('/analyze',response_model=AgentRunResponse)
 async def analyze(req: AgentRunRequest, request: Request):

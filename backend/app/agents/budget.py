@@ -50,17 +50,22 @@ class AgentBudget:
             async with _lock:
                 if self.calls >= self.maximum:
                     raise AgentBudgetExceeded('Per-run model-call budget exhausted')
-                now = time.monotonic()
-                while _calls and now - _calls[0] >= 3600:
-                    _calls.popleft()
-                try:
-                    hourly = min(max(int(os.getenv('MAX_AGENT_MODEL_CALLS_PER_HOUR', '24')), 1), 60)
-                except ValueError:
-                    hourly = 24
-                if len(_calls) >= hourly:
-                    raise AgentBudgetExceeded('Model-call budget exhausted; no paid fallback')
+                # Cloud calls retain a defensive hourly quota. Local Ollama
+                # has no external request quota; its per-run cap of nine still
+                # prevents runaway workflows. Do not block repeat local demos
+                # because of the old cloud-specific hourly budget.
+                if provider != 'ollama':
+                    now = time.monotonic()
+                    while _calls and now - _calls[0] >= 3600:
+                        _calls.popleft()
+                    try:
+                        hourly = min(max(int(os.getenv('MAX_AGENT_MODEL_CALLS_PER_HOUR', '24')), 1), 60)
+                    except ValueError:
+                        hourly = 24
+                    if len(_calls) >= hourly:
+                        raise AgentBudgetExceeded('Model-call budget exhausted; no paid fallback')
+                    _calls.append(now)
                 self.calls += 1
-                _calls.append(now)
             try:
                 return await generate_json(model=model, system=system, payload=payload)
             except httpx.HTTPStatusError as exc:

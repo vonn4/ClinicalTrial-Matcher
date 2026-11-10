@@ -439,3 +439,10 @@ ClinicalTrial Matcher was conceived independently; afterward, the team identifie
 - [Gemini API pricing and free-tier conditions](https://ai.google.dev/gemini-api/docs/pricing)
 - [Cloudflare Pages React guide](https://developers.cloudflare.com/pages/framework-guides/deploy-a-react-site/)
 - [Render free-tier limitations](https://render.com/docs/free)
+
+
+## Local Ollama verification and current research evidence
+
+A dedicated improvement branch, `feat/ollama-performance-evaluation-poster`, preserves the demonstrated `feat/ollama-local-agents` implementation and adds live five-stage progress, a CPU-friendly AI study-count selector, strict uncertainty handling for ambiguous treatment approval ages, and anonymized timing export. On Windows, run `python configure_ollama.py`, then `python run_local.py`; from a second terminal use `python run_local.py --check-ai` to verify that the running backend agrees with the installed `qwen3:4b` model.
+
+See `docs/OLLAMA_2026-11-10_RELEASE_AND_POSTER_EVIDENCE.md` for reproducible demo steps, evaluation commands, poster-safe claims, and explicit limitations. Use fictional patients only; no clinical eligibility determinations are made.

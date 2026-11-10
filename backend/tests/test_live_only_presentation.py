@@ -52,7 +52,9 @@ def test_five_agent_workflow_runs_on_search_without_redundant_play_button():
 
     assert 'Run five-agent workflow' not in trace_src
     assert 'runFiveAgents(' not in trace_src
-    assert '<button' not in trace_src
+    # Exporting sanitized evidence is allowed; a second manual agent-run button is not.
+    assert 'Export anonymous timing evidence' in trace_src
+    assert 'Run five-agent workflow' not in trace_src
     assert 'Execution summary' in trace_src
     assert app_src.count('const settings=selectedAgentSettings();') == 2
     assert app_src.count('const result=await runFiveAgents(') == 2
