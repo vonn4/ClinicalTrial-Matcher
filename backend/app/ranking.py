@@ -7,7 +7,9 @@ from .location_relevance import location_priority
 def tokenize(text: str) -> list[str]:
     return re.findall(r'[a-z0-9]+', text.lower())
 
-def rank_trials(profile: PatientProfile, studies: list[TrialRecord]) -> list[TrialRecord]:
+def rank_trials(profile: PatientProfile, studies: list[TrialRecord], *,
+                origin: tuple[float, float] | None = None,
+                radius_miles: int | None = None) -> list[TrialRecord]:
     if not studies:
         return []
     query=' '.join(filter(None,[profile.diagnosis,profile.stage,' '.join(profile.biomarkers),' '.join(profile.treatments)]))
@@ -25,6 +27,6 @@ def rank_trials(profile: PatientProfile, studies: list[TrialRecord]) -> list[Tri
             norm=tf[term]*2.2/(tf[term]+1.2*(.25+.75*len(tokens)/avg))
             score+=idf*norm
         # Recruitment relevance is not used as an eligibility conclusion.
-        score += location_priority(profile, study)
+        score += location_priority(profile, study, origin=origin, radius_miles=radius_miles)
         study.relevance_score=round(score,4)
     return sorted(studies,key=lambda s:(-s.relevance_score,s.nct_id))
