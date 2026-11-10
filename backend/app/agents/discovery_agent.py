@@ -43,7 +43,14 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
             raise ValueError('Live study selections must have official NCT identifiers')
         studies = await fetch_trials_by_ids(selected_ids)
         annotated = [explain_condition_match(profile.diagnosis, t) or t for t in studies]
-        return annotated[:count], {'candidate_count': len(studies), 'queries': 0, 'model_invoked': False}
+        # Keep original shortlist ordering while restoring the location notes
+        # after each follow-up/reassessment round.
+        radius = travel_radius(profile)
+        origin = await resolve_city(profile.location) if radius and profile.location else None
+        rank_trials(profile, annotated, origin=origin, radius_miles=radius if origin else None)
+        return annotated[:count], {'candidate_count': len(studies), 'queries': 0, 'model_invoked': False,
+            'geographic_radius_applied': False,
+            'location_filter_status': 'Previously selected official studies retained; location annotations recalculated. No new radius search was performed.'}
 
     condition = profile.diagnosis.strip()
     suggestions = SAFE_ALIASES.get(condition.lower(), [])[:1]
