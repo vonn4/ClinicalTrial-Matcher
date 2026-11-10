@@ -42,8 +42,8 @@ def capabilities():
         'tools_available':True, 'live_model_enabled':enabled('ENABLE_LIVE_AI'),
         'model_ready':ready,'model_readiness_message':message,
         'model_provider':'OpenAI' if openai else 'Google Gemini' if provider == 'gemini' else 'Unknown',
-        'analysis_model':AI_ANALYSIS_MODEL,
-        'profile_model':AI_PROFILE_MODEL,
+        'analysis_model':os.getenv('OPENAI_MODEL','gpt-4.1-mini') if openai else AI_ANALYSIS_MODEL,
+        'profile_model':os.getenv('OPENAI_PROFILE_MODEL',os.getenv('OPENAI_MODEL','gpt-4.1-mini')) if openai else AI_PROFILE_MODEL,
         'max_studies':3, 'max_model_calls_per_run':9, 'patient_persistence':False,
         'notice':'Configured model names do not prove successful inference. Check the execution trace after running.'}
 
