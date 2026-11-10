@@ -1,3 +1,12 @@
+## Detailed matching (branch `feat/detailed-matching`, local only)
+
+- **Rules first, model for the rest:** deterministic rules settle recognised criteria (age ranges, FEV1 % predicted, F508del copies, CFTR modulator use, ECOG, informed consent, pregnancy/breastfeeding). The Analyst and Skeptic review only the remainder; a rule verdict always outranks a model verdict. Each assessment carries `source: rules|model`.
+- **Model-output guards:** a model "not met" on an alternative ("A OR B") clause, and any met/not-met on conditional or future-intent wording ("intent to prescribe", "if", "unless"), is downgraded to clinical review.
+- **Per-study evidence overview** (`overview` on each assessment; shown on cards and in the detail panel): counts of met / not met / open criteria, failed inclusions, reported exclusions, and the top three missing facts. It is **not** an eligibility score.
+- **Parsers are deliberately narrow.** A scan of ~60 real studies for each of six conditions found 1.5-6% of criteria are matched by rules; the rest stay in clinical review or go to the model. Age wording must be age-only ("quit smoking for at least 2 years" and "families of patients under 18" are rejected).
+- **Local model speed (measured):** with `qwen3:4b` on CPU, one study takes about 3 minutes. Time is dominated by generated tokens (~8.5 tok/s), not prompt processing; fewer criteria per call helps, prompt tweaks did not.
+- **Known limits:** the model can still mark a criterion met on a weak quote that appears in the profile; BMI and lab values (hemoglobin, platelets) are not mapped because follow-up number input is whole-number only.
+
 ## MVP 2.1 — audit and end-to-end verification (PR #12)
 
 **Active review branch:** \`feat/mvp-2.1-end-to-end-hardening\` (based on 2.0; neither this nor earlier PRs are merged to \`main\`).
