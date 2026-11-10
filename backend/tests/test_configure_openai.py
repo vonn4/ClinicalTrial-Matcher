@@ -36,10 +36,10 @@ def test_configure_refuses_unprotected_env_file(tmp_path,monkeypatch):
 
 
 def test_placeholder_prompts_for_private_replacement(tmp_path, monkeypatch, capsys):
-    (tmp_path/'.gitignore').write_text('.env\\n', encoding='utf8')
+    (tmp_path/'.gitignore').write_text('.env\n', encoding='utf8')
     (tmp_path/'.env').write_text(
-        'ENABLE_LIVE_AI=false\\nOPENAI_API_KEY=PASTE_YOUR_KEY_LOCALLY\\n'
-        'LIVE_AI_ACCESS_TOKEN=existing-browser-token-123456\\n',
+        'ENABLE_LIVE_AI=false\nOPENAI_API_KEY=PASTE_YOUR_KEY_LOCALLY\n'
+        'LIVE_AI_ACCESS_TOKEN=existing-browser-token-123456\n',
         encoding='utf8')
     monkeypatch.setattr(module, 'ROOT', tmp_path)
     monkeypatch.setattr('sys.stdin.isatty', lambda: True)
