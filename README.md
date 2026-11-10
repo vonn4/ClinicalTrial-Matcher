@@ -1,3 +1,40 @@
+## Current test branch — OpenAI-ready ClinicalTrial Matcher
+
+**Branch:** `fix/openai-only-complete-pipeline` ([PR #17](https://github.com/vonn4/ClinicalTrial-Matcher/pull/17)); built on the previous OpenAI/Gemini optional adapter branch. Earlier versions are preserved. The active demo path uses OpenAI in **all five roles**, with deterministic logic for roles that do not require model calls. Gemini references further below describe archived/legacy paths, not this test configuration.
+
+### Fast Windows PowerShell setup
+
+Stop both old local servers (Ctrl+C), then from the repo root:
+
+```powershell
+git fetch origin
+git switch fix/openai-only-complete-pipeline
+git pull --ff-only origin fix/openai-only-complete-pipeline
+python configure_openai.py --enable
+python run_local.py
+```
+
+The setup script reads the existing ignored `.env`, asks for an OpenAI API key *privately* only if missing, and repairs `ENABLE_LIVE_AI=true`, `AI_PROVIDER=openai` and `OPENAI_ALLOW_BILLABLE=true`. It preserves the existing local browser team token; neither secret is printed or pushed to GitHub. **ChatGPT subscriptions and OpenAI API billing are separate.** Explicit opt-in does *not* guarantee no charges; inspect billing/credits before activation. The previously shared OpenAI key should be revoked and replaced.
+
+In Terminal 2, run:
+
+```powershell
+python run_local.py --check-ai
+python run_local.py --check
+```
+
+Both the running backend and `.env` must report the **OpenAI** provider and `gpt-4.1-mini`. The browser at http://127.0.0.1:5173 should enable **Model-assisted five-agent workflow**, after entering the local `LIVE_AI_ACCESS_TOKEN` (not the provider key). Run the existing fictional CF demo; the Analyst **and** independent Skeptic must both show completed reviews to claim a successful AI run.
+
+**Optional real-model acceptance (potentially billable):**
+
+```powershell
+python run_local.py --probe-ai --confirm-api-usage
+python run_local.py --smoke-ai-workflow --confirm-api-usage
+```
+
+If a port is occupied, stop the old application or inspect ports 8000/5173 before relaunching; do not run `python run_local.py` in both terminals. No real patient details. Model responses remain research-navigation aids, not clinical eligibility decisions.
+
+---
 ## Optional OpenAI model backend (MVP demo)
 
 The OpenAI API is billed **separately** from ChatGPT Plus/Pro. This branch does not use an API key unless you explicitly set `OPENAI_ALLOW_BILLABLE=true`. Neither an existing credit balance nor a project budget guarantees no charges; check billing before opting in.
