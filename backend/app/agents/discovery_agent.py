@@ -11,6 +11,7 @@ from ..sandbox import sandbox_search, all_sandbox_trials
 from ..schemas import Mode, PatientProfile, TrialRecord
 from ..settings import GEMINI_MODEL
 from .budget import AgentBudget
+from .model_errors import explain_model_error
 
 SAFE_ALIASES = {
     'non-small cell lung cancer': ['NSCLC'],
@@ -45,6 +46,7 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
     called = False
     # Model may choose ONLY from a pre-reviewed synonym list. It does not invent new diagnoses.
     model_failed = False
+    model_error:dict = {}
     if model and suggestions:
         try:
             response = await budget.generate(model=GEMINI_MODEL,
@@ -55,7 +57,8 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
             proposed = response.get('terms', [])
             suggestions = [x for x in suggestions if isinstance(proposed, list) and x in proposed]
             called = True
-        except Exception:
+        except Exception as exc:
+            model_error=explain_model_error(exc)
             # A failed optional GEMINI alias choice must not erase the real registry
             # results. Only this inference step can fall back; an actual registry
             # failure still propagates and never generates synthetic studies.
@@ -81,4 +84,5 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
     ranked.sort(key=lambda t:(priority.get(t.match_type,3),-t.relevance_score,t.nct_id))
     return ranked[:count], {'candidate_count': len(dedup), 'matched_count': len(ranked),
         'filtered_unrelated': len(dedup)-len(matched), 'queries': len(queries),
-        'failed_probes': failed_probes, 'model_invoked': called, 'model_fallback': model_failed}
+        'failed_probes': failed_probes, 'model_invoked': called, 'model_fallback': model_failed,
+        **model_error}
