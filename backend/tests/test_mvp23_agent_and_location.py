@@ -91,8 +91,10 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
 
     calls = []
     async def fake_model(self, *, model, system, payload):
+        from app.agents.budget import AgentBudgetExceeded
+        if self.calls >= self.maximum:
+            raise AgentBudgetExceeded('mock per-run budget exhausted')
         self.calls += 1  # mimic the real budget adapter for truthful call accounting
-        assert self.calls <= self.maximum
         calls.append(payload)
         if 'allowed_terms' in payload:
             return {'terms': []}
