@@ -1,7 +1,7 @@
 """Agent 5: question priority advice without inventing new questions or evidence."""
 from ..followups import build_followup_plan
 from ..schemas import PatientProfile, TrialRecord
-from ..settings import GEMINI_MODEL
+from ..settings import AI_ANALYSIS_MODEL
 from .budget import AgentBudget
 
 async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: bool, budget: AgentBudget):
@@ -11,7 +11,7 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
         # LLM outputs ONLY an ordering of already source-linked canonical keys.
         # It cannot invent a question or criterion or alter the source links.
         expected = [q.fact_key for q in plan.questions]
-        proposal = await budget.generate(model=GEMINI_MODEL,
+        proposal = await budget.generate(model=AI_ANALYSIS_MODEL,
             system=('You prioritize synthetic clinical-trial follow-up questions. '
                     'Return JSON {"ordered_fact_keys": ["..."]}. '
                     'Use only keys from the provided list and include each exactly once. '
