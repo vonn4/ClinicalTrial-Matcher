@@ -15,3 +15,12 @@ The team independently conceived ClinicalTrial Matcher before noticing a related
 
 ## Report required sections
 Abstract; introduction and unmet need; original contributions; related project context; functional requirements; architecture; retrieval; eligibility; skeptic; dashboard; security; methods; datasets; measured results; error analysis; uncertainty and clinical limitations; cost/hosting; accessibility; future collaboration; reproducibility; references.
+
+
+## November 10 local Ollama working build and improvement branch
+
+Working demonstration branch `feat/ollama-local-agents` remains unchanged. Improvement branch `feat/ollama-performance-evaluation-poster` adds true stage-progress polling, one-study CPU-friendly default, de-identified stage-metrics export, age-threshold contradiction checks, synthetic-only prompt-injection probes, and offline automated regression tests.
+
+Poster-ready observation (single fictional BBS run, **not an accuracy benchmark**): five completed stages; two AI-assisted stages; two model attempts; one official recruiting study `NCT07674290`. The observed treatment-age exclusion was questionable, and the improved branch now downgrades approval-age judgments requiring a missing regulatory cutoff to manual clinical review. **Do not** say this fixes all eligibility errors or cite an accuracy improvement without real repeated labeled evaluations.
+
+Full documentation: [Ollama evidence and acceptance plan](OLLAMA_2026-11-10_RELEASE_AND_POSTER_EVIDENCE.md).
