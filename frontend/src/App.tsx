@@ -64,6 +64,7 @@ function TrialCard({trial,assessment,selected,saved,onSelect,onSave}:{trial:Tria
     {trial.match_explanation&&<p className="trial-match-reason"><Info size={13}/>{trial.match_explanation}</p>}
     <div className="trial-card-meta"><MapPin size={14}/><span>{trial.locations.find(loc=>trial.location_explanation?.includes(loc))||trial.locations[0]||'Location not listed'}</span></div>
     {trial.location_explanation&&<p className="trial-match-reason"><MapPin size={13}/>{trial.location_explanation}</p>}
+    {assessment?.overview&&<p className="trial-match-reason"><Info size={13}/>{assessment.overview.met} met · {assessment.overview.not_met} not met · {assessment.overview.unknown+assessment.overview.clinical_review} open of {assessment.overview.total} criteria</p>}
     <div className="trial-card-bottom"><SummaryBadge summary={assessment?.summary}/><button className="text-link" onClick={onSelect}>Review <ArrowRight size={14}/></button></div>
   </div>;
 }
@@ -80,6 +81,11 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
     {trial.match_explanation&&<div className="trial-match-detail"><Info size={15}/><div><strong>Why this study appeared</strong><p>{trial.match_explanation}{trial.broad_registry?' This is a broad registry, not necessarily a disease-specific trial; confirm its separate eligibility criteria.':''}</p></div></div>}
     <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?.summary==='clinical_review'?'A requirement needs expert interpretation or independent screening; not confirmed eligible.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
     {assessment?<>
+      {assessment.overview&&<div className="match-overview"><div className="subsection-label">EVIDENCE OVERVIEW <span>not an eligibility score</span></div>
+        <div className="mini-stats"><span><b>{assessment.overview.met}</b> Met</span><span><b>{assessment.overview.not_met}</b> Not met</span><span><b>{assessment.overview.unknown+assessment.overview.clinical_review}</b> Open</span><span><b>{assessment.overview.resolved_by_rules}</b> By rules</span><span><b>{assessment.overview.resolved_by_model}</b> By model</span></div>
+        {assessment.overview.inclusions_failed.length>0&&<p className="trial-match-reason"><CircleAlert size={13}/>Requirement not met: {assessment.overview.inclusions_failed.join('; ')}</p>}
+        {assessment.overview.exclusions_triggered.length>0&&<p className="trial-match-reason"><CircleAlert size={13}/>Exclusion reported present: {assessment.overview.exclusions_triggered.join('; ')}</p>}
+        {assessment.overview.top_missing_questions.length>0&&<div><strong>Most useful facts to add next</strong><ul>{assessment.overview.top_missing_questions.map(q=><li key={q}>{q}</li>)}</ul></div>}</div>}
       <div className="mini-stats"><span><b>{counts.inclusion}</b> Inclusion</span><span><b>{counts.exclusion}</b> Exclusion</span><span><b>{counts.unknown}</b> Unresolved</span></div>
       <div className="subsection-label">CRITERION-BY-CRITERION ANALYSIS <span>{pairs.length} identified</span></div>
       <div className="criterion-list">{pairs.map(({c,a,s})=><div className="criterion" key={c.id}>

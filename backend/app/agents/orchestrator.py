@@ -9,6 +9,7 @@ import time
 from ..schemas import Mode, PatientProfile
 from .contracts import AgentRunRequest, AgentRunResponse, AgentTrace
 from .progress import mark_stage, finish_run
+from ..overview import with_overviews
 from .budget import AgentBudget
 from .model_errors import explain_model_error
 from . import profile_agent, discovery_agent, analyst_agent, skeptic_agent, clarification_agent
@@ -132,7 +133,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
                             (f" (HTTP {stage.details['model_http_status']})" if 'model_http_status' in stage.details else ''))
     caveat = (' Partial-model limitations: ' + '; '.join(warnings) + '.' if warnings else '')
     finish_run(request.run_id)
-    return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=reviewed,
+    return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=with_overviews(reviewed,followups),
         followups=followups,trace=trace,model_calls=budget.calls,
         candidate_count=int(trace[1].details.get('candidate_count',len(studies))),
         profile_concerns=profile_concerns,

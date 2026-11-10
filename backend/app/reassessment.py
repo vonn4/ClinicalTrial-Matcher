@@ -7,7 +7,8 @@ clinical review. Source facts are self-reported synthetic examples.
 from __future__ import annotations
 import re
 from .age_rules import age_bounds
-from .clinical_rules import fev1_bounds, f508del_minimum_copies
+from .overview import with_overviews
+from .clinical_rules import fev1_bounds, f508del_minimum_copies, ecog_allowed
 from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .followups import DEFINITIONS, answer_state, map_criterion, validated_followup, build_followup_plan
 from .intake import profile_from_guided_or_text
@@ -131,6 +132,18 @@ def review_criterion(profile: PatientProfile,trial: TrialRecord,criterion: Crite
             good=(lo is None or fev>=lo) and (hi is None or fev<=hi)
             status='met' if good else 'not_met'
             explanation=f'Reported FEV1 {fev}% predicted {"meets" if good else "does not meet"} this threshold (self-reported; not a spirometry record).'
+    elif key=='ecog_status':
+        allowed=ecog_allowed(t)
+        if allowed is not None and value.isdigit():
+            good=int(value) in allowed
+            status='met' if good else 'not_met'
+            explanation=f'Reported ECOG {value} {"is within" if good else "is outside"} the allowed range ({", ".join(map(str,sorted(allowed)))}) (self-reported).'
+        else:status='unknown'
+    elif key=='informed_consent':
+        if value in {'Yes','No'}:
+            status='met' if value=='Yes' else 'not_met'
+            explanation='Ability to give informed consent was reported (self-reported).' if value=='Yes' else 'Inability to give informed consent was reported.'
+        else:status='unknown'
     elif key=='f508del_copies':
         need=f508del_minimum_copies(t)
         have={'Two copies':2,'One copy':1,'None':0}.get(value)
@@ -194,6 +207,7 @@ def reassess(profile: PatientProfile,trials: list[TrialRecord],updates: dict[str
             if old!=a.status:
                 deltas.append(CriterionDelta(nct_id=new.nct_id,criterion_id=a.criterion_id,
                     before=old,after=a.status))
-    return ReassessmentResponse(profile=revised,assessments=reviewed,followups=build_followup_plan(revised,trials),
+    plan=build_followup_plan(revised,trials)
+    return ReassessmentResponse(profile=revised,assessments=with_overviews(reviewed,plan),followups=plan,
         changed_criteria=deltas,
         notice='Deterministic, partial review of synthetic self-reported facts. No independent skeptic or clinical eligibility decision.')

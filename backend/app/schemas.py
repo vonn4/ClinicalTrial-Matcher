@@ -118,6 +118,19 @@ class SkepticFinding(BaseModel):
     explanation: str = ''
     disagreement: bool = False
 
+class MatchOverview(BaseModel):
+    """Evidence counts for one study. These are not an eligibility score."""
+    total: int
+    met: int
+    not_met: int
+    unknown: int
+    clinical_review: int
+    exclusions_triggered: list[str] = Field(default_factory=list)
+    inclusions_failed: list[str] = Field(default_factory=list)
+    resolved_by_rules: int = 0
+    resolved_by_model: int = 0
+    top_missing_questions: list[str] = Field(default_factory=list)
+
 class TrialAssessment(BaseModel):
     nct_id: str
     criteria: list[Criterion]
@@ -126,6 +139,7 @@ class TrialAssessment(BaseModel):
     summary: Literal['potential_match','needs_information','identified_conflict','clinical_review']
     unresolved: list[str] = Field(default_factory=list)
     provenance: Literal['live_llm','synthetic_replay','deterministic_followup']
+    overview: MatchOverview | None = None
 
 class SearchRequest(BaseModel):
     profile: PatientProfile

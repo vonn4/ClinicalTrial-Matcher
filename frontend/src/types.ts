@@ -27,9 +27,10 @@ export interface Trial {
   location_fit?:'preferred_city'|'preferred_state'|'preferred_radius'|'outside_radius'|'other_location'|'unknown'; location_explanation?:string;
 }
 export interface Criterion { id: string; kind: 'inclusion'|'exclusion'; text: string; source_text: string }
-export interface Assessment { criterion_id: string; status: Status; exclusion_triggered:boolean|null; explanation:string; patient_evidence:string[];question_for_doctor:string|null;verified_evidence:boolean }
+export interface Assessment { criterion_id: string; status: Status; exclusion_triggered:boolean|null; explanation:string; patient_evidence:string[];question_for_doctor:string|null;verified_evidence:boolean; source?:'rules'|'model'|null }
 export interface Skeptic {criterion_id:string; independent_status:Status; exclusion_triggered:boolean|null; explanation:string; disagreement:boolean}
-export interface TrialAssessment {nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'|'deterministic_followup'}
+export interface MatchOverview {total:number;met:number;not_met:number;unknown:number;clinical_review:number;exclusions_triggered:string[];inclusions_failed:string[];resolved_by_rules:number;resolved_by_model:number;top_missing_questions:string[]}
+export interface TrialAssessment {overview?:MatchOverview|null;nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'|'deterministic_followup'}
 export interface Analysis {mode:Mode;profile:PatientProfile;trials:Trial[];assessments:TrialAssessment[];timings_ms:Record<string,number>;disclaimer:string}
 
 export interface FollowupCriterionLink {

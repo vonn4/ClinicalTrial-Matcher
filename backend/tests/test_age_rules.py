@@ -30,3 +30,23 @@ def test_compound_or_conditional_wording_is_left_for_review(text):
 def test_label_only_lines_are_not_criteria():
     found = extract_criteria('Inclusion Criteria:\nPart A:\n- Aged 19 years or older\nExclusion Criteria:\n- Pregnancy')
     assert [c.text for c in found] == ['Aged 19 years or older', 'Pregnancy']
+
+
+@pytest.mark.parametrize('text', [
+    'Quit smoking for at least 2 years.',
+    'Families of patients under 18 years of age',
+    'Male patients over 18 years of age',
+    'At least 2 years since diagnosis',
+])
+def test_age_like_numbers_about_other_things_are_not_age_rules(text):
+    assert age_bounds(text) is None
+
+
+@pytest.mark.parametrize('text,expected', [
+    (r'Age \> 18 years', (19, None)),
+    ('Age 16-40 year.', (16, 40)),
+    ('Aged ≥45 years', (45, None)),
+    ('Patient ≥18 years', (18, None)),
+])
+def test_real_registry_wordings(text, expected):
+    assert age_bounds(text) == expected

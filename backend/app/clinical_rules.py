@@ -50,12 +50,45 @@ def modulator_use_clause(text: str) -> bool:
     """True for a bare current-use clause such as "Currently taking Trikafta"."""
     t = _clean(text)
     return bool(re.fullmatch(
-        rf'(?:currently |current )?(?:(?:taking|receiving|on|treated with|using|use of|treatment with)\s+)?'
+        rf'(?:currently |current )?(?:taking|receiving|on|treated with|using|use of|treatment with)\s+'
         rf'(?:a |an |any )?(?:stable (?:dose|regimen) of )?{MODULATORS}(?: therapy| treatment)?', t))
 
 
 def pregnancy_clause(text: str) -> bool:
+    words = re.findall(r'[a-z]+', _clean(text))
+    topic = {'pregnant', 'pregnancy', 'lactating', 'lactation', 'breastfeeding', 'breast', 'feeding', 'nursing'}
+    filler = {'or', 'and', 'currently', 'women', 'woman', 'females', 'female', 'patients', 'is', 'being', 'a', 'who', 'are'}
+    return bool(set(words) & topic) and set(words) <= topic | filler and not ({'who', 'are', 'is'} & set(words))
+
+
+_CONSENT_WORDS = {'ability', 'able', 'to', 'understand', 'and', 'the', 'willingness', 'willing', 'sign', 'signed', 'provide',
+                  'give', 'written', 'dated', 'informed', 'consent', 'form', 'provision', 'of', 'a', 'voluntary', 'participate',
+                  'in', 'study', 'documented', 'document', 'patient', 'participant', 'be', 'have', 'has', 'or', 'obtain', 'obtained'}
+
+
+def informed_consent_clause(text: str) -> bool:
+    """A bare statement that the patient can/did give informed consent (no other duties)."""
+    words = set(re.findall(r'[a-z]+', _clean(text)))
+    return {'informed', 'consent'} <= words and words <= _CONSENT_WORDS
+
+
+def ecog_allowed(text: str) -> set[int] | None:
+    """Allowed ECOG scores from one plain clause such as "ECOG 0-1" or "ECOG performance status of 0 or 1"."""
     t = _clean(text)
-    return bool(re.fullmatch(
-        r'(?:currently )?(?:pregnan(?:t|cy)|breast[- ]?feeding|lactating|pregnant,? (?:or )?(?:breast[- ]?feeding|lactating|nursing)|'
-        r'pregnant (?:or|and/or) (?:breast[- ]?feeding|lactating|nursing)|pregnant or nursing)(?: women| females)?', t))
+    if not re.search(r'\becog\b|eastern cooperative oncology group', t):
+        return None
+    if re.search(r'\([^)]*\d', t):  # e.g. "0-1 (or 0-2)": alternatives in brackets are ambiguous
+        return None
+    t = re.sub(r'\([^)]*\)', ' ', t)
+    t = re.sub(r'eastern cooperative oncology group|\becog\b|performance status|\bscore\b|\bps\b|\bgrade\b|\bscale\b|\bof\b|\bthe\b|\bwith\b|\ban?\b', ' ', t)
+    t = ' '.join(t.split())
+    if m := re.fullmatch(r'(?:<=|no more than|at most|less than or equal to)\s*([0-4])', t):
+        return set(range(int(m[1]) + 1))
+    if m := re.fullmatch(r'(?:<|less than)\s*([0-4])', t):
+        return set(range(int(m[1])))
+    if m := re.fullmatch(r'([0-4])\s*(?:-|to|through)\s*([0-4])', t):
+        lo, hi = int(m[1]), int(m[2])
+        return set(range(lo, hi + 1)) if lo <= hi else None
+    if re.fullmatch(r'[0-4](?:\s*,\s*(?:(?:or|and)\s+)?[0-4]|\s+(?:or|and)\s+[0-4])*', t):
+        return {int(x) for x in re.findall(r'[0-4]', t)}
+    return None

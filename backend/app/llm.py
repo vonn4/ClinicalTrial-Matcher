@@ -129,7 +129,7 @@ async def generate_ollama_json(*, model: str, system: str, payload: dict) -> dic
         'messages': [{'role':'system','content':system + '\nReturn exactly one JSON object, without Markdown or reasoning.'},
                      {'role':'user','content':json.dumps(payload,ensure_ascii=False)}],
         'options': {'temperature':0, 'num_ctx':4096, 'num_predict':2048},
-        'keep_alive':'5m',
+        'keep_alive':'30m',
     }
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(240,connect=5),follow_redirects=False,trust_env=False) as client:

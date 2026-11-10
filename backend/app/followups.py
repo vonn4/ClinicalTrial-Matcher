@@ -9,7 +9,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from .age_rules import age_bounds
-from .clinical_rules import fev1_bounds, f508del_minimum_copies, modulator_use_clause, pregnancy_clause
+from .clinical_rules import (fev1_bounds, f508del_minimum_copies, modulator_use_clause, pregnancy_clause,
+                             informed_consent_clause, ecog_allowed)
 from .study_criteria import criteria_for_trial, verifies_original_criterion
 from .schemas import (
     PatientProfile, TrialRecord, IntakeAnswer, FollowupQuestion, FollowupPlan,
@@ -43,6 +44,8 @@ DEFINITIONS: dict[str, QuestionDefinition] = {
     'f508del_copies': QuestionDefinition('f508del_copies', 'How many copies of the F508del CFTR variant are documented?', 'The study requires a specific number of F508del copies.', 'select', ('Two copies', 'One copy', 'None', "I don't know"), 4),
     'cftr_modulator_use': QuestionDefinition('cftr_modulator_use', 'Is the patient currently taking a CFTR modulator (for example Trikafta / elexacaftor-tezacaftor-ivacaftor)?', 'The study criteria refer to current CFTR modulator therapy.', 'select', ('Yes', 'No', "I don't know"), 4),
     'pregnant_or_breastfeeding': QuestionDefinition('pregnant_or_breastfeeding', 'Is the patient currently pregnant or breastfeeding?', 'Pregnancy or breastfeeding is a study exclusion.', 'select', ('Yes', 'No', "I don't know"), 2),
+    'informed_consent': QuestionDefinition('informed_consent', 'Can the patient (or their legal representative) give written informed consent?', 'Most studies require informed consent.', 'select', ('Yes', 'No', "I don't know"), 2),
+    'ecog_status': QuestionDefinition('ecog_status', 'What is the most recent ECOG performance status (0 = fully active, 4 = bedbound)?', 'The study limits ECOG performance status.', 'select', ('0', '1', '2', '3', '4', "I don't know"), 4),
     'recent_lung_transplant': QuestionDefinition('recent_lung_transplant', 'Has the patient recently received a lung transplant?', 'A trial identifies a recent lung transplant as an exclusion.', 'select', ('Yes', 'No', "I don't know"), 5),
 }
 
@@ -78,6 +81,10 @@ def map_criterion(text: str, kind: str) -> str | None:
         return 'prior_stem_cell_transplant'
     if t=='specific cftr variant confirmed on genetic testing':
         return 'cftr_result'
+    if kind=='inclusion' and informed_consent_clause(t):
+        return 'informed_consent'
+    if ecog_allowed(t) is not None:
+        return 'ecog_status'
     if fev1_bounds(t) is not None:
         return 'fev1_percent'
     if f508del_minimum_copies(t) is not None:

@@ -7,9 +7,10 @@ def extract_criteria(text: str) -> list[Criterion]:
     for raw in text.splitlines():
         line=raw.strip()
         if not line:continue
-        if re.match(r'^(key\s+)?inclusion\s+criteria\s*:?$',line,re.I):
+        # Section headings, optionally qualified ("Inclusion Criteria for Participants:").
+        if re.match(r'^(key\s+)?inclusion\s+criteria\b[^.:]{0,50}:?$',line,re.I):
             kind='inclusion';continue
-        if re.match(r'^(key\s+)?exclusion\s+criteria\s*:?$',line,re.I):
+        if re.match(r'^(key\s+)?exclusion\s+criteria\b[^.:]{0,50}:?$',line,re.I):
             kind='exclusion';continue
         match=re.match(r'^(inclusion|exclusion)\s+criteria\s*:\s*(.+)$',line,re.I)
         if match:
