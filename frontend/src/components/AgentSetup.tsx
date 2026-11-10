@@ -36,14 +36,14 @@ export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disa
     </div>
     {error?<p className="agent-readiness-warning" role="status">{error}. Tool-only analysis is available.</p>
       :capabilities===null?<p className="agent-readiness-note" role="status">Checking the backend model configuration…</p>
-      :ready?<p className="agent-readiness-note"><ShieldCheck size={14}/> Gemini settings found. Model access is not yet verified. The execution trace will show successful calls.</p>
-      :<p className="agent-readiness-warning"><Info size={14}/> Gemini unavailable: {capabilities.model_readiness_message}. Update <code>.env</code> and restart.</p>}
+      :ready?<p className="agent-readiness-note"><ShieldCheck size={14}/> {capabilities.model_provider} settings found. Model access is not yet verified. The execution trace will show successful calls.</p>
+      :<p className="agent-readiness-warning"><Info size={14}/> Model unavailable: {capabilities.model_readiness_message}. Update <code>.env</code> and restart.</p>}
     {depth==='model'&&ready&&<div className="agent-token">
       <label htmlFor="matching-team-token">Local team access token</label>
       <input id="matching-team-token" type="password" autoComplete="off"
         value={token} onChange={e=>onTokenChange(e.target.value)}
-        disabled={disabled} placeholder="Your LIVE_AI_ACCESS_TOKEN (not the Gemini API key)"/>
-      <span>Enter your team token, not the Google API key. Kept only in this page.</span>
+        disabled={disabled} placeholder="Your LIVE_AI_ACCESS_TOKEN (not an API provider key)"/>
+      <span>Enter your team token, not your OpenAI or Gemini API key. Kept only in this page.</span>
     </div>}
     
   </section>;
