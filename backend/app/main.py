@@ -11,6 +11,7 @@ from .schemas import (Mode, ProfileRequest,PatientProfile,SearchRequest,SearchRe
     AssessRequest,TrialRecord,TrialAssessment,AnalysisRequest,AnalysisResponse,IntakeSubmission,FollowupRequest,FollowupPlan,ReassessmentRequest,ReassessmentResponse)
 from .profiling import deterministic_profile,llm_profile
 from .ranking import rank_trials
+from .condition_relevance import filter_condition_matches
 from .clinicaltrials import search_trials,fetch_trial,fetch_trials_by_ids,registry_status,validate_condition
 from .assessment import assess_live
 from .replay import fixture,sample_profile,replay_trials,replay_assessments
@@ -151,9 +152,12 @@ async def search(req:SearchRequest):
     except httpx.HTTPError as e:
         logger.warning('ClinicalTrials.gov request failed: %s',type(e).__name__)
         raise HTTPException(502,'ClinicalTrials.gov is temporarily unavailable; check your internet connection') from e
-    trials=rank_trials(profile,studies)[:req.limit]
+    source_matched=filter_condition_matches(profile.diagnosis,studies)
+    trials=rank_trials(profile,source_matched)[:req.limit]
     return SearchResponse(mode=req.mode,trials=trials,total_returned=len(trials),retrieval_method='clinicaltrials_api_v2_bm25',
-        disclaimer=f'Official ClinicalTrials.gov public data; {len(studies)} recruiting/not-yet-recruiting candidates examined. No eligibility is established.')
+        disclaimer=(f'Official ClinicalTrials.gov public data: {len(studies)} registry candidates, '
+                    f'{len(source_matched)} explicitly tied to the searched disease or a documented synonym. '
+                    'Related indexing alone is not counted as a disease match. Eligibility is not established.'))
 
 @app.get('/api/v1/trials/{nct_id}',response_model=TrialRecord)
 async def get_trial(nct_id:str):
