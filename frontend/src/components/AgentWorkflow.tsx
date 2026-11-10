@@ -13,6 +13,7 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
   if(!result)return null;
   const modelStages=result.trace.filter(x=>x.execution==='model').length;
   const failures=result.trace.filter(failed);
+  const locationStatus=result.trace.find(x=>x.agent==='discovery')?.details.location_filter_status;
   return <section className="panel agent-workflow" aria-label="Five-agent matching execution trace">
     <div className="agent-workflow-heading"><div>
       <h2>Matching execution trace</h2>
@@ -21,6 +22,9 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
     <div className="agent-trace">
       <div className="agent-trace-heading"><ShieldCheck size={18}/><strong>Execution summary</strong>
         <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} matched studies</span></div>
+      {typeof locationStatus==='string'&&<div className="agent-result-note" role="status">
+        <Info size={15}/><span><strong>Location search:</strong> {locationStatus}</span>
+      </div>}
       {failures.length>0&&<div className="agent-error-banner" role="alert">
         <AlertTriangle size={17}/><span>{failures.length} AI stage(s) had problems. No failed model review is counted as verified; review details below.</span>
       </div>}

@@ -72,6 +72,8 @@ class TrialRecord(BaseModel):
     status: str = "UNKNOWN"
     phase: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
+    # Site geo points from official study records, aligned to locations (never inferred).
+    location_geopoints: list[tuple[float | None, float | None]] = Field(default_factory=list)
     eligibility_text: str = ""
     brief_summary: str = ""
     updated: str | None = None
@@ -84,7 +86,7 @@ class TrialRecord(BaseModel):
     match_type: Literal['listed_condition','documented_synonym','text_mention'] | None = None
     match_explanation: str = ''
     broad_registry: bool = False
-    location_fit: Literal['preferred_city','preferred_state','other_location','unknown'] = 'unknown'
+    location_fit: Literal['preferred_city','preferred_state','preferred_radius','outside_radius','other_location','unknown'] = 'unknown'
     location_explanation: str = ''
     @field_validator('nct_id')
     @classmethod

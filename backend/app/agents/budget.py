@@ -4,6 +4,7 @@ All model calls from the new agent orchestration pass through this adapter.
 A failure reserves a slot rather than retrying without limit. No billing fallback.
 """
 import asyncio
+import httpx
 import os
 import time
 from collections import deque
@@ -19,23 +20,41 @@ class AgentBudget:
     def __init__(self, maximum: int = 9):
         self.maximum = min(maximum, 9)
         self.calls = 0
+        # Per-workflow 503 breaker; do not burn the remaining cap trying
+        # multiple studies after repeated upstream service failures.
+        self._unavailable_error: httpx.HTTPStatusError | None = None
 
     async def generate(self, *, model: str, system: str, payload: dict) -> dict:
         # A missing key/disabled provider is NOT counted as a completed or attempted API call.
         if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes','on'} or not os.getenv('GEMINI_API_KEY','').strip():
             raise ModelUnavailable('A free-tier Gemini key and explicit ENABLE_LIVE_AI=true are required')
-        async with _lock:
-            if self.calls >= self.maximum:
-                raise AgentBudgetExceeded('Per-run model-call budget exhausted')
-            now = time.monotonic()
-            while _calls and now - _calls[0] >= 3600:
-                _calls.popleft()
+        if self._unavailable_error is not None:
+            raise self._unavailable_error
+        # Only HTTP 503 gets one short bounded retry. Every outbound attempt
+        # consumes both per-run and hourly budget. Never retry invalid schemas,
+        # authentication errors or 429 quota failures.
+        for retry in range(2):
+            async with _lock:
+                if self.calls >= self.maximum:
+                    raise AgentBudgetExceeded('Per-run model-call budget exhausted')
+                now = time.monotonic()
+                while _calls and now - _calls[0] >= 3600:
+                    _calls.popleft()
+                try:
+                    hourly = min(max(int(os.getenv('MAX_AGENT_MODEL_CALLS_PER_HOUR', '24')), 1), 60)
+                except ValueError:
+                    hourly = 24
+                if len(_calls) >= hourly:
+                    raise AgentBudgetExceeded('Model-call budget exhausted; no paid fallback')
+                self.calls += 1
+                _calls.append(now)
             try:
-                hourly = min(max(int(os.getenv('MAX_AGENT_MODEL_CALLS_PER_HOUR', '24')), 1), 60)
-            except ValueError:
-                hourly = 24
-            if len(_calls) >= hourly:
-                raise AgentBudgetExceeded('Model-call budget exhausted; no paid fallback')
-            self.calls += 1
-            _calls.append(now)
-        return await generate_json(model=model, system=system, payload=payload)
+                return await generate_json(model=model, system=system, payload=payload)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 503:
+                    raise
+                if retry or self.calls >= self.maximum:
+                    self._unavailable_error = exc
+                    raise
+                await asyncio.sleep(1.0)
+        raise RuntimeError('Unreachable provider retry state')
