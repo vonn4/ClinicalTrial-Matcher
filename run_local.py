@@ -248,7 +248,7 @@ def probe_provider_models() -> None:
 def smoke_live_agent_workflow(backend_url: str) -> None:
     """Opt-in single-command live smoke test against one public NCT study.
 
-    Makes REAL AI provider requests using only a fictional profile and the local
+    Makes model inference requests using only a fictional profile and the local
     server-side team token. Does not print credentials, payloads or patient facts.
     Requires a running backend and explicit API usage confirmation; requests may be billable.
     """
@@ -267,18 +267,17 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
     profile = request_json(f'{backend_url}/api/v1/intake/profile', {
         'synthetic': True,
         'answers': {
-            'condition': {'state': 'answered', 'value': 'Cystic fibrosis'},
+            'condition': {'state': 'answered', 'value': 'Bardet-Biedl Syndrome'},
             'diagnosis_confirmation': {'state': 'answered', 'value': 'Confirmed'},
-            'age': {'state': 'answered', 'value': '27'},
-            'cftr_result': {'state': 'unknown', 'value': None},
+            'age': {'state': 'answered', 'value': '39'},
             'location': {'state': 'answered', 'value': 'Seattle, Washington'},
-            'travel': {'state': 'answered', 'value': 'Within 250 miles'},
+            'travel': {'state': 'answered', 'value': 'Flexible / anywhere'},
         },
-        'narrative': 'Entirely fictional CF research profile. Unknown genetic status; no clinical eligibility is presumed.',
+        'narrative': 'Entirely fictional BBS research profile. Genetic status unknown; no clinical eligibility is presumed.',
     })
     payload = {
         'mode': 'live', 'depth': 'model', 'max_studies': 1,
-        'study_ids': ['NCT06429176'], 'profile': profile,
+        'study_ids': ['NCT07674290'], 'profile': profile,
     }
     token = local.get('LIVE_AI_ACCESS_TOKEN', '')
     if len(token) < 16:
