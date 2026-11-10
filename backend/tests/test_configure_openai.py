@@ -18,10 +18,10 @@ def test_enable_openai_repairs_false_flag_without_exposing_secret(tmp_path, monk
     module.configure()
     settings=(tmp_path/'.env').read_text()
     assert 'ENABLE_LIVE_AI=true' in settings
-    assert 'AI_PROVIDER=openai' in settings
+    assert 'AI_PROVIDER=openai' in settings\n    assert 'OPENAI_MODEL=gpt-4.1-mini' in settings\n    assert 'OPENAI_PROFILE_MODEL=gpt-4.1-mini' in settings
     assert 'OPENAI_ALLOW_BILLABLE=true' in settings
     assert 'LIVE_AI_ACCESS_TOKEN=existing-private-browser-token' in settings
-    assert 'OTHER_PROJECT_SETTING=keep' in settings
+    assert 'OTHER_PROJECT_SETTING=keep' in settings\n    assert settings.count('OPENAI_API_KEY=') == 1
     assert 'sk-test-very-long-and-private-value' not in capsys.readouterr().out
 
 def test_configure_refuses_unprotected_env_file(tmp_path,monkeypatch):
