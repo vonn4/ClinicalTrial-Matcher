@@ -38,7 +38,7 @@ function resultFor(depth:Mode){
   return {contract_version:'2.0-A',mode:'live',profile,trials:[study],
     assessments:[assessment],followups,trace,model_calls:depth==='model'?2:0,
     candidate_count:1,profile_concerns:[],changed_criteria:[],
-    notice:'Synthetic browser test only; no Google or registry calls were made.'};
+    notice:'Synthetic browser test only; no paid OpenAI or registry calls were made.'};
 }
 
 async function mockedBackend(page:Page, collected:{depth:string,token:string}[], ready=true,failModel=false){
@@ -61,8 +61,8 @@ async function mockedBackend(page:Page, collected:{depth:string,token:string}[],
     }else if(path==='/api/v1/matching/capabilities'){
       payload={
         agent_roles:agents,tools_available:true,live_model_enabled:ready,model_ready:ready,
-        model_provider:'Google Gemini',model_readiness_message:ready?'Configured':'ENABLE_LIVE_AI disabled',
-        profile_model:'gemini-2.5-flash-lite',analysis_model:'gemini-2.5-flash',
+        model_provider:'OpenAI',model_readiness_message:ready?'Configured':'ENABLE_LIVE_AI disabled',
+        profile_model:'gpt-4.1-mini',analysis_model:'gpt-4.1-mini',
         max_studies:3,max_model_calls_per_run:9
       };
     }else if(path==='/api/v1/profiles/parse'){
@@ -100,7 +100,7 @@ test('quick description automatically runs all five roles once without a Play bu
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,false);
   await page.goto('/');
-  await expect(page.getByText(/Gemini unavailable:/)).toBeVisible();
+  await expect(page.getByText(/OpenAI unavailable:/)).toBeVisible();
   await page.getByRole('button',{name:'Quick description'}).click();
   await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
   await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
@@ -118,7 +118,7 @@ test('model choice and local team token are passed through the first intake sear
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,true);
   await page.goto('/');
-  await expect(page.getByText(/Gemini settings found/)).toBeVisible();
+  await expect(page.getByText(/OpenAI \(gpt-4.1-mini\) configured/)).toBeVisible();
   await page.getByRole('radio',{name:'Model-assisted five-agent workflow'}).check();
   await page.getByLabel('Local team access token').fill('synthetic-team-token-not-real');
   await page.getByRole('button',{name:'Quick description'}).click();
@@ -129,7 +129,7 @@ test('model choice and local team token are passed through the first intake sear
   expect(calls[0]).toEqual({depth:'model',token:'synthetic-team-token-not-real'});
 });
 
-test('a failed Gemini call is visibly diagnosed instead of shown as success',async({page})=>{
+test('a failed OpenAI call is visibly diagnosed instead of shown as success',async({page})=>{
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,true,true);
   await page.goto('/');
