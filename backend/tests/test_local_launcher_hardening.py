@@ -15,7 +15,7 @@ def fake_configuration(tmp_path, monkeypatch):
     (tmp_path/".env").write_text(
         "ENABLE_LIVE_AI=true\n"
         "GEMINI_API_KEY=" + "A" * 35 + "\n"
-        "LIVE_AI_ACCESS_TOKEN=" + "T" * 25 + "\n",
+        "LIVE_AI_ACCESS_TOKEN=" + "T" * 25 + "\n"\n        "GEMINI_MODEL=gemini-2.5-flash\n", 
         encoding="utf-8")
     return tmp_path
 
@@ -102,4 +102,4 @@ def test_live_workflow_smoke_requires_free_tier_opt_in():
         [sys.executable, str(cli), "--smoke-ai-workflow"],
         capture_output=True, text=True, timeout=10)
     assert completed.returncode != 0
-    assert "--confirm-free-tier" in completed.stderr
+    assert "--confirm-api-usage" in completed.stderr
