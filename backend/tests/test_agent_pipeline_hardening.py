@@ -157,7 +157,9 @@ def test_model_probe_requires_explicit_free_tier_confirmation(tmp_path):
     import subprocess
     import sys
     from pathlib import Path
-    script = Path(__file__).resolve().parents[2] / "run_local.py"
+    import shutil
+    script = tmp_path / "run_local.py"  # isolated copy: no project .env, so the provider is a billable default
+    shutil.copy(Path(__file__).resolve().parents[2] / "run_local.py", script)
     cp = subprocess.run([sys.executable, str(script), "--probe-ai"],
                         capture_output=True, text=True, timeout=10)
     assert cp.returncode != 0

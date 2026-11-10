@@ -95,11 +95,13 @@ def test_list_ai_models_is_read_only_and_does_not_print_key(fake_configuration,m
     assert any(k.lower()=='x-goog-api-key' for k,v in seen[0].header_items())
 
 
-def test_live_workflow_smoke_requires_free_tier_opt_in():
+def test_live_workflow_smoke_requires_free_tier_opt_in(tmp_path):
+    import shutil
     import subprocess
     import sys
     from pathlib import Path
-    cli = Path(__file__).resolve().parents[2] / "run_local.py"
+    cli = tmp_path / "run_local.py"  # isolated copy: no project .env, so the provider is a billable default
+    shutil.copy(Path(__file__).resolve().parents[2] / "run_local.py", cli)
     completed = subprocess.run(
         [sys.executable, str(cli), "--smoke-ai-workflow"],
         capture_output=True, text=True, timeout=10)

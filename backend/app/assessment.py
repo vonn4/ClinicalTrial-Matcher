@@ -57,6 +57,24 @@ def requires_approval_age_review(criterion: Criterion) -> bool:
     ))
 
 
+_BRANCHING = re.compile(r'\b(?:or|and/or)\b', re.I)
+_CONDITIONAL = re.compile(
+    r'\b(?:if|unless|except|provided that|at the discretion|as determined by|intent(?:ion)? to|'
+    r'plan(?:s|ned|ning)? to|will (?:be|receive|start|initiate)|expected to|anticipated|scheduled to)\b', re.I)
+
+
+def needs_branch_review(criterion: Criterion, status: str) -> bool:
+    """Reject model verdicts a flat patient profile cannot decide.
+
+    Alternatives ("A OR B") make "not met" unsafe unless every branch is absent.
+    Conditions, future intent or plans are not captured as patient facts at all.
+    """
+    text=criterion.source_text
+    if status=='not_met' and _BRANCHING.search(text):
+        return True
+    return status in {'met','not_met'} and bool(_CONDITIONAL.search(text))
+
+
 def contradicts_explicit_age_bound(profile: PatientProfile, criterion: Criterion, status: str) -> bool:
     """Reject model outcomes opposite a simple, explicitly numeric age exclusion.
 
@@ -103,15 +121,18 @@ def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criter
         contradictory_age = contradicts_explicit_age_bound(profile, c, status)
         if (ambiguous_age or contradictory_age) and status in {'met','not_met'}:
             status='clinical_review'
+        branching = not (ambiguous_age or contradictory_age) and needs_branch_review(c, status)
+        if branching:
+            status='clinical_review'
         triggered=None
         if c.kind=='exclusion' and item and valid and status in {'met','not_met'}:
             # Derive from status, never trust an inconsistent model flag.
             triggered=status=='met'
         results.append(CriterionAssessment(criterion_id=c.id,status=status,exclusion_triggered=triggered,
-            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else 'Model conclusion contradicts the explicit patient-age threshold; manual review required.' if contradictory_age else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
-            patient_evidence=[] if ambiguous_age or contradictory_age else item.patient_evidence if item and valid else [],
-            question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else 'Does the stated age cutoff apply to this patient?' if contradictory_age else item.question_for_doctor if item and valid else None,
-            verified_evidence=valid and not (ambiguous_age or contradictory_age)))
+            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else 'Model conclusion contradicts the explicit patient-age threshold; manual review required.' if contradictory_age else 'This requirement has alternatives, conditions or future intent that the patient facts cannot decide; study-team review required.' if branching else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
+            patient_evidence=[] if ambiguous_age or contradictory_age or branching else item.patient_evidence if item and valid else [],
+            question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else 'Does the stated age cutoff apply to this patient?' if contradictory_age else 'How does this requirement apply to the patient?' if branching else item.question_for_doctor if item and valid else None,
+            verified_evidence=valid and not (ambiguous_age or contradictory_age or branching)))
     return results
 
 def aggregate(criteria:list[Criterion],primary:list[CriterionAssessment],skeptic:list[SkepticFinding])->tuple[str,list[str]]:
