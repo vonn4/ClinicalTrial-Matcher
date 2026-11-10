@@ -63,6 +63,58 @@ _CONDITIONAL = re.compile(
     r'plan(?:s|ned|ning)? to|will (?:be|receive|start|initiate)|expected to|anticipated|scheduled to)\b', re.I)
 
 
+_STOP = {'patient', 'patients', 'participant', 'participants', 'subject', 'subjects', 'with', 'have', 'that', 'this',
+         'from', 'must', 'will', 'been', 'study', 'and', 'the', 'for', 'are', 'not', 'any', 'all', 'who', 'was', 'were',
+         'has', 'had', 'per', 'than', 'such', 'other', 'least', 'more', 'less', 'only', 'which', 'their', 'both'}
+# Profile fields and the criterion wording they can legitimately speak to.
+_TOPICS = {
+    'age': {'age', 'aged', 'ages', 'year', 'old', 'older', 'adult', 'adolescent', 'pediatric', 'child', 'children', 'younger'},
+    'condition': {'diagnosis', 'diagnosed', 'disease', 'condition', 'confirmed', 'documentation', 'documented', 'history'},
+    'diagnosis_confirmation': {'diagnosis', 'diagnosed', 'confirmed', 'confirmation', 'documentation', 'documented'},
+    'previous_treatments': {'prior', 'previous', 'previously', 'received', 'history', 'ever', 'treated'},
+    'current_treatments': {'current', 'currently', 'receiving', 'taking', 'ongoing', 'concurrent'},
+    'location': {'location', 'site', 'reside', 'resident', 'country', 'live', 'living'},
+    'travel': {'travel', 'distance', 'visit', 'visits'},
+}
+
+
+# Criteria about genes need genetic evidence; a drug name shared with the criterion is not enough.
+_GENETIC = {'mutation', 'mutations', 'variant', 'variants', 'genotype', 'allele', 'alleles', 'gene', 'genetic', 'genetics',
+            'cftr', 'egfr', 'alk', 'her2', 'brca', 'kras', 'f508del', 'homozygous', 'heterozygous'}
+_GENETIC_FIELDS = {'cftr_result', 'egfr_result', 'alk_result', 'her2_result', 'sickle_genotype', 'egfr_variant', 'subtype'}
+
+
+def _terms(text: str) -> set[str]:
+    words = {w[:-1] if w.endswith('s') and len(w) > 4 else w for w in re.findall(r'[a-z]+', text.lower())}
+    return {w for w in words if len(w) >= 3 and w not in _STOP}
+
+
+def evidence_relates(criterion: Criterion, fragments: list[str]) -> bool:
+    """True when at least one quoted patient fragment is about what the criterion asks.
+
+    Substring-of-profile is not enough: a real quote about prior treatment says
+    nothing about a genetic variant. Relevance means a shared key term, a profile
+    field whose topic the criterion mentions, or an abbreviation match (CF, NSCLC).
+    """
+    crit = _terms(criterion.source_text)
+    crit_words = set(re.findall(r'[a-z]+', criterion.source_text.lower()))
+    if crit_words & _GENETIC:
+        return any(f.partition(':')[0].strip().lower() in _GENETIC_FIELDS or set(re.findall(r'[a-z0-9]+', f.lower())) & _GENETIC
+                   for f in fragments)
+    for fragment in fragments:
+        field, _, value = fragment.partition(':')
+        field = field.strip().lower() if value else ''
+        body = value if value else fragment
+        if crit & _terms(body):
+            return True
+        if field in _TOPICS and (crit & _TOPICS[field] or crit_words & _TOPICS[field]):
+            return True
+        initials = ''.join(w[0] for w in re.findall(r'[a-z]+', body.lower()) if w not in {'of', 'and', 'the'})
+        if len(initials) >= 2 and initials in crit_words:
+            return True
+    return False
+
+
 def needs_branch_review(criterion: Criterion, status: str) -> bool:
     """Reject model verdicts a flat patient profile cannot decide.
 
@@ -124,15 +176,19 @@ def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criter
         branching = not (ambiguous_age or contradictory_age) and needs_branch_review(c, status)
         if branching:
             status='clinical_review'
+        weak = (not (ambiguous_age or contradictory_age or branching) and valid and status in {'met','not_met'}
+                and not evidence_relates(c, item.patient_evidence))
+        if weak:
+            status='unknown'
         triggered=None
         if c.kind=='exclusion' and item and valid and status in {'met','not_met'}:
             # Derive from status, never trust an inconsistent model flag.
             triggered=status=='met'
         results.append(CriterionAssessment(criterion_id=c.id,status=status,exclusion_triggered=triggered,
-            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else 'Model conclusion contradicts the explicit patient-age threshold; manual review required.' if contradictory_age else 'This requirement has alternatives, conditions or future intent that the patient facts cannot decide; study-team review required.' if branching else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
-            patient_evidence=[] if ambiguous_age or contradictory_age or branching else item.patient_evidence if item and valid else [],
+            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else 'Model conclusion contradicts the explicit patient-age threshold; manual review required.' if contradictory_age else 'The quoted patient evidence does not address this requirement; treated as unknown.' if weak else 'This requirement has alternatives, conditions or future intent that the patient facts cannot decide; study-team review required.' if branching else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
+            patient_evidence=[] if ambiguous_age or contradictory_age or branching or weak else item.patient_evidence if item and valid else [],
             question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else 'Does the stated age cutoff apply to this patient?' if contradictory_age else 'How does this requirement apply to the patient?' if branching else item.question_for_doctor if item and valid else None,
-            verified_evidence=valid and not (ambiguous_age or contradictory_age or branching)))
+            verified_evidence=valid and not (ambiguous_age or contradictory_age or branching or weak)))
     return results
 
 def aggregate(criteria:list[Criterion],primary:list[CriterionAssessment],skeptic:list[SkepticFinding])->tuple[str,list[str]]:
