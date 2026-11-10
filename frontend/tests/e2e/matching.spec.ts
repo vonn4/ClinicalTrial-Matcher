@@ -108,7 +108,7 @@ test('quick description automatically runs all five roles once without a Play bu
   await expect(page.getByText(study.nct_id).first()).toBeVisible();
   await expect(page.getByText('Listed study condition: multiple sclerosis').first()).toBeVisible();
   await expect(page.getByText('MVP 2.0')).toHaveCount(0);
-  await expect(page.getByText('5 roles · 0 used AI · 0 model calls · 1 candidates')).toBeVisible();
+  await expect(page.getByText('5 stages · 0 AI-assisted · 0 model attempts · 1 matched studies')).toBeVisible();
   await expect(page.getByRole('button',{name:/Run five-agent workflow/i})).toHaveCount(0);
   expect(calls).toHaveLength(1);
   expect(calls[0]).toEqual({depth:'tools',token:''});
@@ -124,7 +124,7 @@ test('model choice and local team token are passed through the first intake sear
   await page.getByRole('button',{name:'Quick description'}).click();
   await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
   await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
-  await expect(page.getByText('5 roles · 2 used AI · 2 model calls · 1 candidates')).toBeVisible();
+  await expect(page.getByText('5 stages · 2 AI-assisted · 2 model attempts · 1 matched studies')).toBeVisible();
   expect(calls).toHaveLength(1);
   expect(calls[0]).toEqual({depth:'model',token:'synthetic-team-token-not-real'});
 });
@@ -141,6 +141,6 @@ test('a failed Gemini call is visibly diagnosed instead of shown as success',asy
   await expect(page.getByText('1 AI stage(s) had problems.')).toBeVisible();
   await expect(page.getByText(/This model is not available to this project/)).toBeVisible();
   await expect(page.getByText(/HTTP 404/)).toBeVisible();
-  await expect(page.getByText('5 roles · 0 used AI · 1 model calls · 1 candidates')).toBeVisible();
+  await expect(page.getByText('5 stages · 0 AI-assisted · 1 model attempt · 1 matched studies')).toBeVisible();
   expect(calls).toHaveLength(1);
 });
