@@ -81,6 +81,9 @@ class TrialRecord(BaseModel):
     minimum_age: str | None = None
     maximum_age: str | None = None
     relevance_score: float = 0
+    match_type: Literal['listed_condition','documented_synonym','text_mention'] | None = None
+    match_explanation: str = ''
+    broad_registry: bool = False
     @field_validator('nct_id')
     @classmethod
     def validate_id(cls,v: str) -> str:

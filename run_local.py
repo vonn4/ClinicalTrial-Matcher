@@ -150,6 +150,53 @@ def verify_model_readiness(backend_url: str) -> None:
           'python run_local.py --probe-ai --confirm-free-tier')
 
 
+def list_available_models() -> None:
+    """List model IDs permitted by the locally configured key, without inference.
+
+    Google AI Studio billing, RPM and daily quota must still be verified
+    separately. Do not print keys, raw URLs with credentials or response bodies.
+    """
+    local = load_env(ROOT / '.env')
+    key = local.get('GEMINI_API_KEY', '').strip()
+    if not key:
+        raise RuntimeError('Missing GEMINI_API_KEY in project .env; run configure_local_ai.py')
+    address = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100'
+    items = []
+    token = ''
+    for _ in range(3):
+        url = address + (('&pageToken=' + token) if token else '')
+        req = Request(url, headers={'x-goog-api-key':key}, method='GET')
+        try:
+            with urlopen(req, timeout=22) as response:
+                data = json.load(response)
+        except HTTPError as exc:
+            raise RuntimeError(
+                'Gemini model listing failed (HTTP ' + str(exc.code) +
+                '). Check the private key, its project permissions and API availability.'
+            ) from None
+        except (URLError,TimeoutError,OSError):
+            raise RuntimeError('Cannot reach Gemini model listing; check network connectivity.') from None
+        items.extend(data.get('models') or [])
+        token = data.get('nextPageToken') or ''
+        if not token: break
+    supported = sorted({str(m.get('name','')).removeprefix('models/')
+        for m in items if 'generateContent' in m.get('supportedGenerationMethods',[])
+        and str(m.get('name','')).startswith('models/gemini-')})
+    configured = (local.get('GEMINI_PROFILE_MODEL','gemini-2.5-flash-lite'),
+                  local.get('GEMINI_MODEL','gemini-2.5-flash'))
+    print('Models supporting generateContent for this API key:')
+    for name in supported:
+        print(' ',name)
+    if not supported:
+        raise RuntimeError('No compatible Gemini text models were returned; check API access.')
+    for label,name in zip(('Profile model','Analyst/Skeptic model'),configured):
+        print(label + ': ' + name + ' — ' +
+              ('LISTED' if name in supported else 'NOT LISTED for this key'))
+    print('The listing checks access metadata only, not free-tier quota or a successful inference.')
+    print('If a configured model is NOT LISTED, select a supported free-tier model in .env,')
+    print('then restart python run_local.py and run --probe-ai --confirm-free-tier.')
+
+
 def probe_provider_models() -> None:
     """Deliberate real Gemini smoke test on NON-PATIENT synthetic JSON, never credentials."""
     import asyncio
@@ -254,6 +301,7 @@ def main() -> int:
     parser.add_argument('--check', action='store_true', help='Test existing frontend/backend including custom profile submissions')
     parser.add_argument('--check-live', action='store_true', help='Test REAL ClinicalTrials.gov API and follow-up pipeline; requires internet and an already running backend')
     parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking Gemini (backend must be running)')
+    parser.add_argument('--list-ai-models', action='store_true', help='List model IDs available to your local Gemini key; no inference calls')
     parser.add_argument('--probe-ai', action='store_true', help='OPT-IN: call real Gemini model(s) with a non-patient JSON probe')
     parser.add_argument('--confirm-free-tier', action='store_true', help='Confirm that YOU verified the Google project has an eligible free tier with billing disabled')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
@@ -273,6 +321,9 @@ def main() -> int:
             return 0
         if args.check_ai:
             verify_model_readiness(b)
+            return 0
+        if args.list_ai_models:
+            list_available_models()
             return 0
         if args.probe_ai:
             if not args.confirm_free_tier:

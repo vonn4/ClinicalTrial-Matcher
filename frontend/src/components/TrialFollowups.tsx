@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react';
-import {ArrowRight, ChevronDown, CircleHelp, FileText, Info, Loader2, Pencil, ShieldCheck, CheckCircle2} from 'lucide-react';
+import {ArrowRight, ChevronDown, FileText, Info, Loader2, Pencil, ShieldCheck, CheckCircle2} from 'lucide-react';
 import type {CriterionDelta,FollowupPlan,FollowupQuestion,IntakeAnswer,IntakeAnswerState} from '../types';
 
 interface Props {
@@ -73,6 +73,20 @@ export default function TrialFollowups({plan,loading,submitting,error,answers,ch
   const [editing,setEditing]=useState<string|null>(null);
   const [showUnmapped,setShowUnmapped]=useState(false);
   if (!loading && !error && !plan) return null;
+  if (!loading && !error && plan && plan.questions.length===0 && plan.completed_questions.length===0){
+    if(plan.unmapped_criteria.length===0)return null;
+    return <section className="panel followup-compact" aria-label="Requirements needing clinical review">
+      <button type="button" className="followup-reason-toggle" aria-expanded={showUnmapped}
+        onClick={()=>setShowUnmapped(!showUnmapped)}>
+        <ShieldCheck size={16}/> {plan.unmapped_criteria.length} requirements need clinician review
+        <ChevronDown size={14} className={showUnmapped?'rotate':''}/>
+      </button>
+      {showUnmapped&&<div className="followup-source-list">{plan.unmapped_criteria.map((c,i)=>
+        <p key={`${c.nct_id}:${c.criterion_id}:${i}`}><b>{c.nct_id} · {c.criterion_id}</b> — {c.reason}</p>)}
+        <p>These questions cannot be resolved safely by the supported automatic rules.</p>
+      </div>}
+    </section>;
+  }
   const renderSource=(q:FollowupQuestion)=>expanded===q.fact_key&&<div className="followup-source-list">
     {q.linked_criteria.map(link=><div className="followup-source" key={`${link.nct_id}:${link.criterion_id}`}>
       <button type="button" onClick={()=>onSelectTrial(link.nct_id)}>{link.nct_id} · {link.criterion_id} <ArrowRight size={13}/></button>
@@ -83,11 +97,11 @@ export default function TrialFollowups({plan,loading,submitting,error,answers,ch
   return <section className="panel trial-followups" aria-label="Trial-specific follow-up questions">
     <div className="followup-heading">
       <div>
-        <div className="section-eyebrow"><CircleHelp size={15}/> SHARED TRIAL QUESTIONS · MVP 1.5-C</div>
-        <h2>Questions that could clarify your trial matches</h2>
-        <p>Provide an answer once. Every linked trial is reviewed independently against its exact original requirement.</p>
+        
+        <h2>Questions to clarify</h2>
+        <p>One answer can update several studies.</p>
       </div>
-      <span className="followup-phase-tag">Rule-based refresh</span>
+      
     </div>
     {loading&&<p className="followup-status">Loading study criteria and initial rule-based review…</p>}
     {error&&<div className="intake-error" role="alert"><Info size={16}/> {error}. Existing trial information remains available.</div>}

@@ -124,6 +124,25 @@ def configure(root: Path, new_key: str, *, rotate_team_token: bool = False) -> s
     return token
 
 
+def set_models(root: Path, analysis_model: str, profile_model: str) -> None:
+    """Change only public model IDs in the already ignored local .env file."""
+    allowed = re.compile(r"gemini-[a-zA-Z0-9.-]{3,80}\Z")
+    if not (allowed.fullmatch(analysis_model) and allowed.fullmatch(profile_model)):
+        raise ValueError("Model IDs must be names returned by python run_local.py --list-ai-models")
+    ignore = root / ".gitignore"
+    if not ignore.exists() or ".env" not in {line.strip() for line in ignore.read_text(encoding="utf-8").splitlines()}:
+        raise RuntimeError("Refusing to write to a project without a git-ignored .env")
+    env = root / ".env"
+    if not env.exists():
+        raise RuntimeError("Configure the private .env before choosing model IDs.")
+    content = env.read_text(encoding="utf-8")
+    revised = update_text(content, {
+        "GEMINI_MODEL": analysis_model,
+        "GEMINI_PROFILE_MODEL": profile_model
+    })
+    write_private_env(env, revised)
+
+
 def show_status(root: Path) -> bool:
     """Display only presence and non-secret model identifiers; no provider calls."""
     env = root / ".env"
@@ -148,9 +167,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Safely configure optional local Gemini inference")
     parser.add_argument("--status", action="store_true", help="Inspect local .env without revealing credentials")
     parser.add_argument("--rotate-team-token", action="store_true", help="Also replace the local UI team token")
+    parser.add_argument("--analysis-model", help="Set a Gemini model ID for Analyst/Skeptic; must be used with --profile-model")
+    parser.add_argument("--profile-model", help="Set a Gemini profile model ID; must be used with --analysis-model")
     args = parser.parse_args(argv)
     if args.status:
         return 0 if show_status(ROOT) else 1
+    if args.analysis_model or args.profile_model:
+        if not (args.analysis_model and args.profile_model):
+            parser.error("Provide both --analysis-model and --profile-model")
+        try:
+            set_models(ROOT, args.analysis_model, args.profile_model)
+        except (ValueError, RuntimeError, OSError) as exc:
+            print("ERROR:", exc, file=sys.stderr)
+            return 1
+        print("Updated local model IDs without changing or printing credentials.")
+        print("Restart python run_local.py and verify with --check-ai and --probe-ai.")
+        return 0
     if not sys.stdin.isatty():
         print("ERROR: Run interactively in the VS Code terminal; never pass a key on the command line.", file=sys.stderr)
         return 2

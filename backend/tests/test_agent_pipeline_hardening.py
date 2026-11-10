@@ -51,7 +51,7 @@ def trial(nct="NCT12345678"):
 def test_live_pipeline_falls_back_when_gemini_discovery_fails(monkeypatch):
     setup_model(monkeypatch)
     async def search(query, limit=80):
-        return [trial()]
+        return [trial().model_copy(update={'conditions':['sickle cell disease']})]
     async def fail_choice(self, *, model, system, payload):
         if "allowed_terms" in payload:
             raise ModelUnavailable("test-only optional selection failed")

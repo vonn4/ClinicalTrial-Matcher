@@ -102,3 +102,16 @@ def test_patch_preserves_user_model_selection_and_removes_managed_duplicates(pro
     assert "GEMINI_MODEL=gemini-other-test-model" in text
     assert "MAX_AGENT_MODEL_CALLS_PER_HOUR=4" in text
     assert "ANOTHER_SETTING=preserve" in text
+
+
+def test_model_selection_preserves_private_key_and_token(project):
+    token = local.configure(project, KEY_A)
+    local.set_models(project, 'gemini-3.8-flash', 'gemini-3.5-flash-lite')
+    values = local.read_settings((project / '.env').read_text(encoding='utf8'))
+    assert values['GEMINI_MODEL'] == 'gemini-3.8-flash'
+    assert values['GEMINI_PROFILE_MODEL'] == 'gemini-3.5-flash-lite'
+    assert values['GEMINI_API_KEY'] == KEY_A
+    assert values['LIVE_AI_ACCESS_TOKEN'] == token
+    with pytest.raises(ValueError):
+        local.set_models(project, 'gemini-bad\\nEXTRA=1', 'gemini-3.5-flash-lite')
+    assert 'EXTRA=1' not in (project / '.env').read_text(encoding='utf8')

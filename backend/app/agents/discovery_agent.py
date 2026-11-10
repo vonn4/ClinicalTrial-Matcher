@@ -6,12 +6,17 @@ import asyncio
 import re
 from ..clinicaltrials import search_trials, fetch_trials_by_ids
 from ..ranking import rank_trials
+from ..condition_relevance import filter_condition_matches, explain_condition_match
 from ..sandbox import sandbox_search, all_sandbox_trials
 from ..schemas import Mode, PatientProfile, TrialRecord
 from ..settings import GEMINI_MODEL
 from .budget import AgentBudget
+from .model_errors import explain_model_error
 
 SAFE_ALIASES = {
+    # NIH MedlinePlus Genetics lists Bassen-Kornzweig syndrome as a synonym.
+    'abetalipoproteinemia': ['Bassen-Kornzweig Syndrome'],
+    'bassen-kornzweig syndrome': ['Abetalipoproteinemia'],
     'non-small cell lung cancer': ['NSCLC'],
     'nsclc': ['non-small cell lung cancer'],
     'sickle cell disease': ['sickle cell anemia'],
@@ -36,13 +41,15 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
         if any(not re.fullmatch(r'NCT\d{8}', n) for n in selected_ids):
             raise ValueError('Live study selections must have official NCT identifiers')
         studies = await fetch_trials_by_ids(selected_ids)
-        return studies[:count], {'candidate_count': len(studies), 'queries': 0, 'model_invoked': False}
+        annotated = [explain_condition_match(profile.diagnosis, t) or t for t in studies]
+        return annotated[:count], {'candidate_count': len(studies), 'queries': 0, 'model_invoked': False}
 
     condition = profile.diagnosis.strip()
     suggestions = SAFE_ALIASES.get(condition.lower(), [])[:1]
     called = False
     # Model may choose ONLY from a pre-reviewed synonym list. It does not invent new diagnoses.
     model_failed = False
+    model_error:dict = {}
     if model and suggestions:
         try:
             response = await budget.generate(model=GEMINI_MODEL,
@@ -53,7 +60,8 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
             proposed = response.get('terms', [])
             suggestions = [x for x in suggestions if isinstance(proposed, list) and x in proposed]
             called = True
-        except Exception:
+        except Exception as exc:
+            model_error=explain_model_error(exc)
             # A failed optional GEMINI alias choice must not erase the real registry
             # results. Only this inference step can fall back; an actual registry
             # failure still propagates and never generates synthetic studies.
@@ -72,5 +80,12 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
         for study in studies:
             if study.source == 'clinicaltrials.gov':
                 dedup[study.nct_id] = study
-    ranked = rank_trials(profile, list(dedup.values()))
-    return ranked[:count], {'candidate_count': len(ranked), 'queries': len(queries), 'failed_probes': failed_probes, 'model_invoked': called, 'model_fallback': model_failed}
+    matched = filter_condition_matches(condition, list(dedup.values()))
+    ranked = rank_trials(profile, matched)
+    # Strongest source evidence first; BM25 breaks ties within each evidence tier.
+    priority={'listed_condition':0,'documented_synonym':1,'text_mention':2}
+    ranked.sort(key=lambda t:(priority.get(t.match_type,3),-t.relevance_score,t.nct_id))
+    return ranked[:count], {'candidate_count': len(dedup), 'matched_count': len(ranked),
+        'filtered_unrelated': len(dedup)-len(matched), 'queries': len(queries),
+        'failed_probes': failed_probes, 'model_invoked': called, 'model_fallback': model_failed,
+        **model_error}

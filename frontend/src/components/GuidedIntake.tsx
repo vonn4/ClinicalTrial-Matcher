@@ -108,8 +108,8 @@ export default function GuidedIntake({onSearch,busy}:Props) {
   return <section className="guided-intake panel">
     <div className="guided-intake-header">
       <div><div className="section-eyebrow"><ClipboardCheck size={15}/> GUIDED PATIENT INTAKE</div><h3>Build a clearer patient profile</h3>
-        <p>Synthetic patients only. You can skip unknown information; it will never count as a negative test or a clinical clearance.</p></div>
-      <span className="intake-version">MVP 1.5-A</span>
+        <p>Fictional patients only. Leave unknown information unanswered.</p></div>
+      
     </div>
     <div className="intake-steps" aria-label="Intake progress">{STEPS.map((item,i)=><button type="button" key={item.id}
       className={step===i?'active':i<step?'complete':''} disabled={i>step+1||i>0&&!validCondition}
@@ -128,7 +128,7 @@ export default function GuidedIntake({onSearch,busy}:Props) {
           </div>}
         </div>
       </>:<>
-        <div className="intake-review-banner"><ShieldCheck size={18}/><div><strong>Review your synthetic profile</strong><p>Structured answers take precedence over your free-text story. Unanswered questions remain unresolved.</p></div></div>
+        <div className="intake-review-banner"><ShieldCheck size={18}/><div><strong>Review patient details</strong><p>Unknown answers remain unresolved.</p></div></div>
         <div className="intake-review-grid">{applicable.map(q=><div key={q.id} className="intake-review-row"><span>{q.label}</span>
           <strong>{statusLabel(answers[q.id])}</strong></div>)}</div>
         {narrative.trim()&&<div className="intake-story-review"><b>Optional story:</b> {narrative}</div>}

@@ -5,6 +5,7 @@ from ..reassessment import review_trial
 from ..schemas import PatientProfile, TrialRecord, TrialAssessment
 from ..settings import GEMINI_MODEL
 from .budget import AgentBudget
+from .model_errors import explain_model_error
 
 MAX_MODEL_CRITERIA = 24
 
@@ -34,10 +35,12 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
     handled = 0
     unsupported = 0
     failed = 0
+    first_error:dict = {}
     for t in trials:
         try:
             outcome = await model_judgment(profile, t, budget)
-        except Exception:
+        except Exception as exc:
+            if not first_error: first_error = explain_model_error(exc)
             # Model/provider failures must not discard independent reviews of
             # earlier trials. The failed study becomes an explicit partial rule
             # check; it must never be mistaken for a successful AI assessment.
@@ -55,4 +58,5 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
                         skeptic=[], summary=summary, unresolved=unresolved, provenance='live_llm'))
         handled += 1
     return results, {'model_invoked': handled > 0, 'model_reviewed': handled,
-                     'model_failures': failed, 'criteria_limit_skips': unsupported, 'trials': len(trials)}
+                     'model_failures': failed, 'criteria_limit_skips': unsupported, 'trials': len(trials),
+                     **first_error}

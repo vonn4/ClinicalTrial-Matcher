@@ -9,6 +9,7 @@ import time
 from ..schemas import Mode, PatientProfile
 from .contracts import AgentRunRequest, AgentRunResponse, AgentTrace
 from .budget import AgentBudget
+from .model_errors import explain_model_error
 from . import profile_agent, discovery_agent, analyst_agent, skeptic_agent, clarification_agent
 
 
@@ -33,6 +34,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
     except Exception as exc:
         if not use_model: raise
         profile, meta = await profile_agent.execute(request.profile, model=False, budget=budget)
+        meta.update(explain_model_error(exc));meta['model_fallback']=True
         fallback = True
     profile_meta_concerns = meta.get('concerns', [])
     trace.append(event('profile','tools' if fallback or not meta['model_invoked'] else 'model',
@@ -67,9 +69,10 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
     try:
         primary,meta=await analyst_agent.execute(profile,shortlist,model=use_model,budget=budget)
         fallback=False
-    except Exception:
+    except Exception as exc:
         if not use_model:raise
         primary,meta=await analyst_agent.execute(profile,shortlist,model=False,budget=budget)
+        meta.update(explain_model_error(exc));meta['model_fallback']=True
         fallback=True
     trace.append(event('analyst','tools' if fallback or not meta['model_invoked'] else 'model',
         'Source-linked preliminary criterion judgments; complex or unsupported rules remain unresolved.'+
@@ -79,9 +82,10 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
     try:
         reviewed,meta=await skeptic_agent.execute(profile,shortlist,primary,model=use_model,budget=budget)
         fallback=False
-    except Exception:
+    except Exception as exc:
         if not use_model:raise
         reviewed,meta=await skeptic_agent.execute(profile,shortlist,primary,model=False,budget=budget)
+        meta.update(explain_model_error(exc));meta['model_fallback']=True
         fallback=True
     trace.append(event('skeptic','tools' if fallback or not meta['model_invoked'] else 'model',
         ('Independent model assessment compared with primary judgments.' if meta['model_invoked'] else
@@ -92,9 +96,10 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
     try:
         followups,meta=await clarification_agent.execute(profile,shortlist,model=use_model,budget=budget)
         fallback=False
-    except Exception:
+    except Exception as exc:
         if not use_model:raise
         followups,meta=await clarification_agent.execute(profile,shortlist,model=False,budget=budget)
+        meta.update(explain_model_error(exc));meta['model_fallback']=True
         fallback=True
     trace.append(event('clarification','tools' if fallback or not meta['model_invoked'] else 'model',
         'Existing source-grounded questions prioritized and deduplicated by fact key.'+
@@ -113,6 +118,9 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         if stage.details.get('criteria_limit_skips', 0):
             warnings.append(stage.agent + ': ' + str(stage.details['criteria_limit_skips']) +
                             ' study/studies exceeded bounded model criterion coverage')
+        if stage.details.get('model_error'):
+            warnings.append(stage.agent + ': ' + str(stage.details['model_error']) +
+                            (f" (HTTP {stage.details['model_http_status']})" if 'model_http_status' in stage.details else ''))
     caveat = (' Partial-model limitations: ' + '; '.join(warnings) + '.' if warnings else '')
     return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=reviewed,
         followups=followups,trace=trace,model_calls=budget.calls,

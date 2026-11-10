@@ -23,7 +23,7 @@ export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disa
   return <section className="panel agent-setup" aria-label="Select analysis mode before searching">
     <div className="agent-setup-heading"><BrainCircuit size={18}/>
       <div><strong>Analysis mode</strong>
-        <p>Submitting the patient intake automatically runs all five workflow stages once. No separate Play action.</p>
+        
       </div>
     </div>
     <div className="agent-mode-options" role="group" aria-label="Choose inference for the next matching search">
@@ -36,15 +36,15 @@ export default function AgentSetup({depth,onDepthChange,token,onTokenChange,disa
     </div>
     {error?<p className="agent-readiness-warning" role="status">{error}. Tool-only analysis is available.</p>
       :capabilities===null?<p className="agent-readiness-note" role="status">Checking the backend model configuration…</p>
-      :ready?<p className="agent-readiness-note"><ShieldCheck size={14}/> Gemini configured: profile <code>{capabilities.profile_model}</code>, reasoning <code>{capabilities.analysis_model}</code>. Successful inference is verified by the execution trace.</p>
-      :<p className="agent-readiness-warning"><Info size={14}/> Gemini not enabled: {capabilities.model_readiness_message}. Add the required values to the project <code>.env</code>, then restart the app and refresh this page.</p>}
+      :ready?<p className="agent-readiness-note"><ShieldCheck size={14}/> Gemini settings found. Model access is not yet verified. The execution trace will show successful calls.</p>
+      :<p className="agent-readiness-warning"><Info size={14}/> Gemini unavailable: {capabilities.model_readiness_message}. Update <code>.env</code> and restart.</p>}
     {depth==='model'&&ready&&<div className="agent-token">
       <label htmlFor="matching-team-token">Local team access token</label>
       <input id="matching-team-token" type="password" autoComplete="off"
         value={token} onChange={e=>onTokenChange(e.target.value)}
         disabled={disabled} placeholder="Your LIVE_AI_ACCESS_TOKEN (not the Gemini API key)"/>
-      <span>Kept in the page's temporary state, not stored in the browser. Only fictional patient details. Model calls use the configured free-tier project.</span>
+      <span>Enter your team token, not the Google API key. Kept only in this page.</span>
     </div>}
-    <p className="agent-readiness-note">Five agent roles do not mean five separate models or five guaranteed LLM calls. The Profile, Discovery and Clarification agents call Gemini only when their inputs require it; the Analyst and Skeptic use independent reasoning where supported.</p>
+    
   </section>;
 }

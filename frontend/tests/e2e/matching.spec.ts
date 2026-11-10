@@ -14,6 +14,7 @@ const study={
   conditions:['multiple sclerosis'],eligibility_text:'Inclusion Criteria: Adults 18+',
   source:'clinicaltrials.gov',url:'https://clinicaltrials.gov/study/NCT12345678',
   brief_summary:'Only a browser-test fixture',minimum_age:'18 Years',
+  match_type:'listed_condition',match_explanation:'Listed study condition: multiple sclerosis',broad_registry:false,
   maximum_age:null,updated:null,retrieved_at:'2026-11-08T12:00:00Z'
 };
 const assessment={
@@ -40,7 +41,7 @@ function resultFor(depth:Mode){
     notice:'Synthetic browser test only; no Google or registry calls were made.'};
 }
 
-async function mockedBackend(page:Page, collected:{depth:string,token:string}[], ready=true){
+async function mockedBackend(page:Page, collected:{depth:string,token:string}[], ready=true,failModel=false){
   await page.route(/^http:\/\/(localhost|127\.0\.0\.1):8000\//,async route=>{
     const request=route.request();
     if(request.method()==='OPTIONS'){
@@ -69,7 +70,18 @@ async function mockedBackend(page:Page, collected:{depth:string,token:string}[],
     }else if(path==='/api/v1/matching/analyze'){
       const body=request.postDataJSON() as {depth:Mode};
       collected.push({depth:body.depth,token:request.headers()['x-live-access-token']||''});
-      payload=resultFor(body.depth);
+      const run=resultFor(body.depth);
+      if(failModel){
+        run.model_calls=1;
+        run.trace[2]={...run.trace[2],execution:'tools',model_calls:1,details:{
+          model_failures:1,model_error:'model_unavailable',model_http_status:404,
+          model_help:'This model is not available to this project; check available models.'
+        }};
+        run.trace[3]={...run.trace[3],execution:'tools',model_calls:0,details:{
+          independent_trials:0
+        }};
+      }
+      payload=run;
     }else if(path==='/api/v1/intake/questions'){
       payload={version:'1.5-A',questions:[]};
     }else{
@@ -88,13 +100,15 @@ test('quick description automatically runs all five roles once without a Play bu
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,false);
   await page.goto('/');
-  await expect(page.getByText('Gemini not enabled:')).toBeVisible();
+  await expect(page.getByText(/Gemini unavailable:/)).toBeVisible();
   await page.getByRole('button',{name:'Quick description'}).click();
   await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
   await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
   await expect(page.getByText('Matching execution trace')).toBeVisible();
   await expect(page.getByText(study.nct_id).first()).toBeVisible();
-  await expect(page.getByText('5 roles · 0 used AI · 0 model calls · 1 candidates')).toBeVisible();
+  await expect(page.getByText('Listed study condition: multiple sclerosis').first()).toBeVisible();
+  await expect(page.getByText('MVP 2.0')).toHaveCount(0);
+  await expect(page.getByText('5 stages · 0 AI-assisted · 0 model attempts · 1 matched studies')).toBeVisible();
   await expect(page.getByRole('button',{name:/Run five-agent workflow/i})).toHaveCount(0);
   expect(calls).toHaveLength(1);
   expect(calls[0]).toEqual({depth:'tools',token:''});
@@ -104,13 +118,29 @@ test('model choice and local team token are passed through the first intake sear
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,true);
   await page.goto('/');
-  await expect(page.getByText(/Gemini configured:/)).toBeVisible();
+  await expect(page.getByText(/Gemini settings found/)).toBeVisible();
   await page.getByRole('radio',{name:'Model-assisted five-agent workflow'}).check();
   await page.getByLabel('Local team access token').fill('synthetic-team-token-not-real');
   await page.getByRole('button',{name:'Quick description'}).click();
   await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
   await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
-  await expect(page.getByText('5 roles · 2 used AI · 2 model calls · 1 candidates')).toBeVisible();
+  await expect(page.getByText('5 stages · 2 AI-assisted · 2 model attempts · 1 matched studies')).toBeVisible();
   expect(calls).toHaveLength(1);
   expect(calls[0]).toEqual({depth:'model',token:'synthetic-team-token-not-real'});
+});
+
+test('a failed Gemini call is visibly diagnosed instead of shown as success',async({page})=>{
+  const calls:{depth:string,token:string}[]=[];
+  await mockedBackend(page,calls,true,true);
+  await page.goto('/');
+  await page.getByRole('radio',{name:'Model-assisted five-agent workflow'}).check();
+  await page.getByLabel('Local team access token').fill('synthetic-team-token-not-real');
+  await page.getByRole('button',{name:'Quick description'}).click();
+  await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
+  await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
+  await expect(page.getByText('1 AI stage(s) had problems.')).toBeVisible();
+  await expect(page.getByText(/This model is not available to this project/)).toBeVisible();
+  await expect(page.getByText(/HTTP 404/)).toBeVisible();
+  await expect(page.getByText('5 stages · 0 AI-assisted · 1 model attempt · 1 matched studies')).toBeVisible();
+  expect(calls).toHaveLength(1);
 });
