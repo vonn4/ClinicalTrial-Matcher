@@ -10,7 +10,7 @@ from ..criteria import extract_criteria
 from ..llm import ModelUnavailable
 from ..reassessment import review_trial
 from ..schemas import PatientProfile, TrialRecord, TrialAssessment
-from ..settings import GEMINI_MODEL
+from ..settings import AI_ANALYSIS_MODEL
 from .budget import AgentBudget
 from .model_errors import explain_model_error
 
@@ -42,7 +42,7 @@ async def model_judgment(profile: PatientProfile, trial: TrialRecord, budget: Ag
     judgments = []
     for start in range(0, len(criteria), CRITERIA_PER_CALL):
         segment = criteria[start:start + CRITERIA_PER_CALL]
-        response = await budget.generate(model=GEMINI_MODEL, system=system, payload={
+        response = await budget.generate(model=AI_ANALYSIS_MODEL, system=system, payload={
             'synthetic_patient_description': profile.description,
             'structured_patient_facts': [{'field': f.field, 'value': f.value} for f in profile.facts[:35]],
             'unknown_or_pending': profile.unknowns[:30],
