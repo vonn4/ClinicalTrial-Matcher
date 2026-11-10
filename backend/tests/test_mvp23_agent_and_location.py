@@ -88,6 +88,11 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
     async def search(_query, limit=80):
         return [large.model_copy(deep=True), extra.model_copy(deep=True)]
     monkeypatch.setattr(discovery_agent, 'search_trials', search)
+    # A Seattle, 250-mile guided profile now uses official radius discovery.
+    async def near_search(condition, lat, lon, miles, limit=80):
+        assert miles == 250
+        return await search(condition, limit=limit)
+    monkeypatch.setattr(discovery_agent, 'search_trials_geo', near_search)
 
     calls = []
     async def fake_model(self, *, model, system, payload):
