@@ -91,6 +91,8 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
 
     calls = []
     async def fake_model(self, *, model, system, payload):
+        self.calls += 1  # mimic the real budget adapter for truthful call accounting
+        assert self.calls <= self.maximum
         calls.append(payload)
         if 'allowed_terms' in payload:
             return {'terms': []}
@@ -111,7 +113,7 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
         json={'mode':'live','depth':'model','profile':make_profile(),'max_studies':2})
     assert result.status_code == 200, result.text
     data = result.json()
-    assert data['model_calls'] <= 9
+    assert 7 <= data['model_calls'] <= 9
     assert len(data['assessments'][0]['criteria']) == 30
     assert len(data['assessments'][0]['assessments']) == 30
     assert data['assessments'][0]['provenance'] == 'live_llm'
