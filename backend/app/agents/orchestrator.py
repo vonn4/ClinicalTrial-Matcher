@@ -118,6 +118,9 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         if stage.details.get('criteria_limit_skips', 0):
             warnings.append(stage.agent + ': ' + str(stage.details['criteria_limit_skips']) +
                             ' study/studies exceeded bounded model criterion coverage')
+        if stage.details.get('budget_skips', 0):
+            warnings.append(stage.agent + ': ' + str(stage.details['budget_skips']) +
+                            ' study/studies used rules-only review to preserve independent Skeptic model-call capacity')
         if stage.details.get('model_error'):
             warnings.append(stage.agent + ': ' + str(stage.details['model_error']) +
                             (f" (HTTP {stage.details['model_http_status']})" if 'model_http_status' in stage.details else ''))
