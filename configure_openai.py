@@ -10,7 +10,27 @@ import getpass
 from pathlib import Path
 import re
 import secrets
-from configure_local_ai import read_settings, update_text, write_private_env, ROOT
+from configure_local_ai import read_settings, write_private_env, ROOT
+
+
+def update_openai_settings(original: str, updates: dict[str, str]) -> str:
+    """Replace keys once; unlike the old Gemini helper, include ALL OpenAI keys."""
+    kept = []
+    seen = set()
+    for line in original.splitlines():
+        match = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
+        name = match.group(1) if match else None
+        if name in updates:
+            if name not in seen:
+                kept.append(f"{name}={updates[name]}")
+                seen.add(name)
+        else:
+            kept.append(line)
+    for name, value in updates.items():
+        if name not in seen:
+            kept.append(f"{name}={value}")
+    return "\n".join(kept).rstrip("\n") + "\n"
+
 
 def configure() -> None:
     path = ROOT / ".env"
@@ -39,7 +59,7 @@ def configure() -> None:
         "OPENAI_ALLOW_BILLABLE": "true",
         "LIVE_AI_ACCESS_TOKEN": token,
     }
-    write_private_env(path, update_text(original, updates))
+    write_private_env(path, update_openai_settings(original, updates))
     print("SUCCESS: local OpenAI analysis enabled. Neither key nor browser token printed.")
     print("Provider:", updates["AI_PROVIDER"], "| analysis:", updates["OPENAI_MODEL"])
     print("IMPORTANT: OpenAI API requests may incur charges. Restart python run_local.py.")
