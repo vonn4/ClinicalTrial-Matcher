@@ -292,6 +292,6 @@ export default function App(){
     </>}
     {page==='saved'&&<SavedView trials={analysis.trials} assessments={displayedAssessments} saved={saved} setSaved={setSaved} onSelect={selectTrial}/>}
     {page==='research'&&<ResearchLab/>}
-    <footer className="footer"><span>ClinicalTrial Matcher · Hackaroo 2026</span><span>Built for transparent research navigation, not clinical decisions.</span></footer>
+    <footer className="footer"><span>ClinicalTrial Matcher · Hackaroo 2026</span><span>Built for transparent research navigation, not clinical decisions. City geocoding, when used, by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>.</span></footer>
   </main></div>
 }
