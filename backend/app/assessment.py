@@ -1,5 +1,6 @@
 """Evidence-checked criterion assessment with independent model verification."""
 from __future__ import annotations
+import re
 from pydantic import BaseModel, Field
 from .schemas import PatientProfile,TrialRecord,CriterionAssessment,SkepticFinding,TrialAssessment,Criterion
 from .criteria import extract_criteria,validate_evidence
@@ -40,6 +41,22 @@ async def _judgments(profile:PatientProfile,criteria:list[Criterion],independent
 def _safe_status(status:str)->str:
     return status if status in {'met','not_met','unknown','clinical_review'} else 'unknown'
 
+def requires_approval_age_review(criterion: Criterion) -> bool:
+    """Avoid declaring an exclusion from an unspecified regulatory approval age.
+
+    'Younger than the age approved for treatment X' is NOT a numeric age cutoff.
+    The model may incorrectly use any adult age as evidence for exclusion.
+    Clinical review is required until an authoritative applicable cutoff is established.
+    """
+    if criterion.kind != 'exclusion':
+        return False
+    source = criterion.source_text.lower()
+    return bool(re.search(
+        r'\\b(?:younger|under|below|less than)\\b.{0,90}\\b(?:age approved|approved age|minimum approved age|age authorized|authorized age|age licensed)\\b',
+        source,
+    ))
+
+
 def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criterion],batch:JudgmentBatch)->list[CriterionAssessment]:
     # Materialize one result for EVERY source criterion. Missing, duplicate, or fabricated
     # source/patient evidence can never silently become a positive finding.
@@ -57,15 +74,21 @@ def validate_batch(profile:PatientProfile,trial:TrialRecord,criteria:list[Criter
         status=_safe_status(item.status) if item else 'unknown'
         if not valid or (status in {'met','not_met'} and (not item or not item.patient_evidence)):
             status='unknown'
+        # An unspecified treatment approval age cannot be evaluated against 39,
+        # or any other age, without a verified numeric cutoff. Do not let a
+        # fluent explanation or a quoted age produce a false exclusion flag.
+        ambiguous_age = requires_approval_age_review(c)
+        if ambiguous_age and status in {'met','not_met'}:
+            status='clinical_review'
         triggered=None
         if c.kind=='exclusion' and item and valid and status in {'met','not_met'}:
             # Derive from status, never trust an inconsistent model flag.
             triggered=status=='met'
         results.append(CriterionAssessment(criterion_id=c.id,status=status,exclusion_triggered=triggered,
-            explanation=item.explanation if item and valid else 'Insufficient verified evidence; needs review.',
-            patient_evidence=item.patient_evidence if item and valid else [],
-            question_for_doctor=item.question_for_doctor if item and valid else None,
-            verified_evidence=valid))
+            explanation=('Treatment approval age is not established by the criterion; clinician verification required.' if ambiguous_age else item.explanation if item and valid else 'Insufficient verified evidence; needs review.'),
+            patient_evidence=[] if ambiguous_age else item.patient_evidence if item and valid else [],
+            question_for_doctor='What approved treatment age applies to this study and patient?' if ambiguous_age else item.question_for_doctor if item and valid else None,
+            verified_evidence=valid and not ambiguous_age))
     return results
 
 def aggregate(criteria:list[Criterion],primary:list[CriterionAssessment],skeptic:list[SkepticFinding])->tuple[str,list[str]]:
