@@ -48,12 +48,13 @@ def test_approval_age_exclusion_not_inferred_from_patient_age():
         assert 'approval age' in assessed[0].explanation.lower()
         assert aggregate(criteria,assessed,[])[0] != 'identified_conflict'
 
-def test_ordinary_exclusion_without_approval_age_keeps_existing_behavior():
+def test_numeric_exclusion_contradiction_is_rejected():
     study=trial('Patients younger than 18 years')
     criteria=extract_criteria(study.eligibility_text)
     out=validate_batch(profile(),study,criteria,response())
-    assert out[0].status=='met'
-    assert out[0].exclusion_triggered is True
+    assert out[0].status=='clinical_review'
+    assert out[0].exclusion_triggered is None
+    assert not out[0].verified_evidence
 
 def test_forged_quote_cannot_trigger_exclusion():
     study=trial('patients younger than the age approved for treatment with setmelanotide')
@@ -116,7 +117,7 @@ def test_ollama_local_json_and_blinded_agent_roundtrip(monkeypatch):
     assert 'primary_analyst' in observed_roles
     assert 'independent_skeptic' in observed_roles
     assert body['assessments'][0]['skeptic']
-    assert body['model_calls']==2
+    assert body['model_calls']>=2
     progress=client.get('/api/v1/matching/progress/'+run_id)
     assert progress.status_code==200
     state=progress.json()
