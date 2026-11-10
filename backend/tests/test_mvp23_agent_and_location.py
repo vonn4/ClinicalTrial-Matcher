@@ -84,7 +84,7 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
     monkeypatch.setenv('LIVE_AI_ACCESS_TOKEN', TOKEN)
     monkeypatch.setenv('MAX_AGENT_MODEL_CALLS_PER_HOUR', '24')
     large = make_trial('NCT12345678', 'Seattle, Washington, United States', 30)
-    extra = make_trial('NCT23456789', 'Los Angeles, California, United States', 3)
+    extra = make_trial('NCT23456789', 'Los Angeles, California, United States', 30)
     async def search(_query, limit=80):
         return [large.model_copy(deep=True), extra.model_copy(deep=True)]
     monkeypatch.setattr(discovery_agent, 'search_trials', search)
@@ -122,6 +122,9 @@ def test_long_study_gets_all_criteria_and_independent_skeptic(monkeypatch):
     assert len(data['assessments'][0]['skeptic']) == 30
     assert data['trace'][2]['details']['model_reviewed'] >= 1
     assert data['trace'][3]['details']['independent_trials'] >= 1
+    assert data['trace'][2]['details']['budget_skips'] == 1
+    assert data['assessments'][1]['provenance'] == 'deterministic_followup'
+    assert 'used rules-only review to preserve independent Skeptic' in data['notice']
     assert all(a['status'] == 'unknown' for a in data['assessments'][0]['assessments'])
     primary = [p for p in calls if p.get('role') == 'primary_analyst']
     skeptic = [p for p in calls if p.get('role') == 'independent_skeptic']
@@ -142,3 +145,37 @@ def test_unsupported_extra_long_protocol_falls_back_without_claiming_ai(monkeypa
     assert meta['model_reviewed'] == 0
     assert len(reviews[0].criteria) >= 45
     assert reviews[0].provenance == 'deterministic_followup'
+
+
+def test_skeptic_unavailable_preserves_preexisting_exclusion_or_inclusion_conflict():
+    """A missing independent review must not hide an already flagged safety conflict."""
+    from app.agents.skeptic_agent import execute
+    from app.criteria import extract_criteria
+    from app.schemas import CriterionAssessment, TrialAssessment
+
+    profile = PatientProfile.model_validate(make_profile())
+    study = make_trial('NCT12345678', 'Seattle, Washington, United States')
+    criteria = extract_criteria(study.eligibility_text)
+    primary = TrialAssessment(
+        nct_id=study.nct_id,
+        criteria=criteria,
+        assessments=[
+            CriterionAssessment(
+                criterion_id=c.id,
+                status='not_met' if i == 0 else 'unknown',
+                patient_evidence=['age: 27.'] if i == 0 else [],
+                verified_evidence=True,
+            ) for i, c in enumerate(criteria)
+        ],
+        skeptic=[],
+        summary='identified_conflict',
+        provenance='live_llm',
+    )
+    reconciled, meta = asyncio.run(
+        execute(profile, [study], [primary], model=False, budget=AgentBudget())
+    )
+    assert meta['model_invoked'] is False
+    assert reconciled[0].summary == 'identified_conflict'
+    assert reconciled[0].skeptic == []
+    assert any('Independent AI skeptic review not completed' in msg
+               for msg in reconciled[0].unresolved)
