@@ -20,15 +20,28 @@ MAX_MODEL_CRITERIA = 36
 CRITERIA_PER_CALL = 12
 
 
-def call_count(trial: TrialRecord) -> int:
-    count = len(extract_criteria(trial.eligibility_text))
-    if not count or count > MAX_MODEL_CRITERIA:
+def split_by_rules(profile: PatientProfile, trial: TrialRecord):
+    """Deterministic rules decide what they can; only the rest goes to the model.
+
+    A rule verdict (met / not_met on a recognised, source-verified clause) always
+    outranks a model verdict, so the model never re-litigates settled criteria.
+    """
+    criteria = extract_criteria(trial.eligibility_text)
+    ruled = {a.criterion_id: a for a in review_trial(profile, trial).assessments}
+    settled = {c.id: ruled[c.id] for c in criteria
+               if c.id in ruled and ruled[c.id].status in {'met', 'not_met'} and ruled[c.id].verified_evidence}
+    return criteria, settled, [c for c in criteria if c.id not in settled]
+
+
+def call_count(profile: PatientProfile, trial: TrialRecord) -> int:
+    pending = len(split_by_rules(profile, trial)[2])
+    if not pending or pending > MAX_MODEL_CRITERIA:
         return 0
-    return ceil(count / CRITERIA_PER_CALL)
+    return ceil(pending / CRITERIA_PER_CALL)
 
 
 async def model_judgment(profile: PatientProfile, trial: TrialRecord, budget: AgentBudget, *, skeptic: bool = False):
-    criteria = extract_criteria(trial.eligibility_text)
+    all_criteria, settled, criteria = split_by_rules(profile, trial)
     if not criteria or len(criteria) > MAX_MODEL_CRITERIA:
         return None
     system = PROMPT_COMMON + (
@@ -57,8 +70,10 @@ async def model_judgment(profile: PatientProfile, trial: TrialRecord, budget: Ag
         if not relevant:
             raise ModelUnavailable('No source-linked criterion judgments returned')
         judgments.extend(relevant)
-    return criteria, validate_batch(profile, trial, criteria,
-                                    JudgmentBatch(assessments=judgments))
+    reviewed = {a.criterion_id: a.model_copy(update={'source': 'model'})
+                for a in validate_batch(profile, trial, criteria, JudgmentBatch(assessments=judgments))}
+    reviewed.update({k: v.model_copy(update={'source': 'rules'}) for k, v in settled.items()})
+    return all_criteria, [reviewed[c.id] for c in all_criteria]
 
 
 async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: bool, budget: AgentBudget):
@@ -72,9 +87,9 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
     reserved_skeptic = 0
     first_error: dict = {}
     for trial in trials:
-        required = call_count(trial)
+        required = call_count(profile, trial)
         if required == 0:
-            if len(extract_criteria(trial.eligibility_text)) > MAX_MODEL_CRITERIA:
+            if len(split_by_rules(profile, trial)[2]) > MAX_MODEL_CRITERIA:
                 unsupported += 1
             results.append(review_trial(profile, trial))
             continue

@@ -109,6 +109,7 @@ class CriterionAssessment(BaseModel):
     patient_evidence: list[str] = Field(default_factory=list)
     question_for_doctor: str | None = None
     verified_evidence: bool = False
+    source: Literal['rules','model'] | None = None
 
 class SkepticFinding(BaseModel):
     criterion_id: str
