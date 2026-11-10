@@ -112,14 +112,14 @@ def verify_model_readiness(backend_url: str) -> None:
     active = local.get('AI_PROVIDER', 'gemini').strip().lower()
     enabled_local = local.get('ENABLE_LIVE_AI', '').strip().lower() in {'true','1','yes','on'}
     key_name = 'OPENAI_API_KEY' if active == 'openai' else 'GEMINI_API_KEY'
-    key_ok = bool(local.get(key_name, '').strip())
+    key_ok = True if active == 'ollama' else bool(local.get(key_name, '').strip())
     token_ok = len(local.get('LIVE_AI_ACCESS_TOKEN', '').strip()) >= 16
     consent_ok = active != 'openai' or local.get('OPENAI_ALLOW_BILLABLE', '').strip().lower() in {'true','1','yes','on'}
     print('Project root:', ROOT)
     print('Local ignored .env exists:', (ROOT / '.env').exists())
     print('Selected provider:', active)
     print('Local AI enabled:', enabled_local)
-    print('Local provider key present:', key_ok)
+    print('Local provider key present:', 'not required (Ollama)' if active == 'ollama' else key_ok)
     print('Explicit API usage permission:', consent_ok)
     print('Local team access token present:', token_ok)
     try:
@@ -130,10 +130,11 @@ def verify_model_readiness(backend_url: str) -> None:
     print('Running provider:', caps.get('model_provider', 'unknown'))
     print('Running analysis model:', caps.get('analysis_model', 'unknown'))
     if not (enabled_local and key_ok and token_ok and consent_ok):
-        raise RuntimeError('LOCAL CONFIGURATION INCOMPLETE: for OpenAI run '
-                           'python configure_openai.py --enable; then restart the server')
-    expected_provider = 'OpenAI' if active == 'openai' else 'Google Gemini'
-    expected_model = (local.get('OPENAI_MODEL', 'gpt-4.1-mini') if active == 'openai'
+        raise RuntimeError('LOCAL CONFIGURATION INCOMPLETE: for Ollama run '
+                           'python configure_ollama.py; then restart the server')
+    expected_provider = 'Ollama (local)' if active == 'ollama' else 'OpenAI' if active == 'openai' else 'Google Gemini'
+    expected_model = (local.get('OLLAMA_MODEL','qwen3:4b') if active == 'ollama'
+                      else local.get('OPENAI_MODEL', 'gpt-4.1-mini') if active == 'openai'
                       else local.get('GEMINI_MODEL', 'gemini-3.5-flash'))
     if (caps.get('model_provider') != expected_provider or
         caps.get('analysis_model') != expected_model or not caps.get('model_ready')):
@@ -141,6 +142,16 @@ def verify_model_readiness(backend_url: str) -> None:
             'STALE BACKEND CONFIGURATION: local .env and running server do not agree. '
             'Stop old servers with Ctrl+C, free ports 8000/5173, then restart python run_local.py. '
             'Backend reason: ' + str(caps.get('model_readiness_message', 'unknown')))
+    if active == 'ollama':
+        try:
+            installed = request_json('http://127.0.0.1:11434/api/tags', timeout=5)
+        except (URLError, HTTPError, TimeoutError, ConnectionError, OSError):
+            raise RuntimeError('Ollama is not reachable on localhost:11434. Start Ollama first.') from None
+        names = {str(model.get('name','')) for model in installed.get('models',[])}
+        if expected_model not in names:
+            raise RuntimeError('Ollama is running but model ' + expected_model +
+                               ' is not installed. Run: ollama pull ' + expected_model)
+        print('READY: Ollama server and installed model are accessible locally.')
     print('READY: local .env and running backend agree on configured provider.')
     print('Configuration only; verify actual Analyst and Skeptic inference in the execution trace.')
     if active == 'openai':
@@ -151,6 +162,18 @@ def list_available_models() -> None:
     """List current provider models without making a paid inference request."""
     local = load_env(ROOT / '.env')
     provider = local.get('AI_PROVIDER', 'gemini').strip().lower()
+    if provider == 'ollama':
+        try:
+            data = request_json('http://127.0.0.1:11434/api/tags', timeout=5)
+        except (URLError, HTTPError, TimeoutError, ConnectionError, OSError):
+            raise RuntimeError('Ollama not reachable at localhost:11434') from None
+        models = sorted({str(item.get('name','')) for item in data.get('models',[])})
+        print('Installed local Ollama models:')
+        for name in models:
+            print(' ',name)
+        selected = local.get('OLLAMA_MODEL','qwen3:4b')
+        print('Selected:',selected,'—','INSTALLED' if selected in models else 'NOT INSTALLED')
+        return
     if provider == 'openai':
         key = local.get('OPENAI_API_KEY', '').strip()
         if not key:
@@ -195,13 +218,16 @@ def probe_provider_models() -> None:
     import asyncio
     env = load_env(ROOT / '.env')
     if env.get('ENABLE_LIVE_AI', '').strip().lower() not in {'true','1','yes','on'}:
-        raise RuntimeError('Live AI disabled: run python configure_openai.py --enable')
+        raise RuntimeError('Live AI disabled; configure the selected provider in local .env')
     if env.get('AI_PROVIDER', 'gemini') == 'openai' and env.get('OPENAI_ALLOW_BILLABLE', '').lower() != 'true':
         raise RuntimeError('OpenAI API requires explicit OPENAI_ALLOW_BILLABLE=true')
     os.environ.update(env)
     sys.path.insert(0, str(BACKEND))
     from app.llm import generate_json
-    model = env.get('OPENAI_MODEL','gpt-4.1-mini') if env.get('AI_PROVIDER') == 'openai' else env.get('GEMINI_MODEL','gemini-3.5-flash')
+    provider = env.get('AI_PROVIDER','gemini').strip().lower()
+    model = (env.get('OLLAMA_MODEL','qwen3:4b') if provider == 'ollama'
+             else env.get('OPENAI_MODEL','gpt-4.1-mini') if provider == 'openai'
+             else env.get('GEMINI_MODEL','gemini-3.5-flash'))
     async def check():
         try:
             result = await generate_json(
@@ -230,9 +256,11 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
     local = load_env(ROOT / '.env')
     caps = request_json(f'{backend_url}/api/v1/matching/capabilities')
     selected = local.get('AI_PROVIDER', 'gemini').strip().lower()
-    expected_profile = (local.get('OPENAI_PROFILE_MODEL', local.get('OPENAI_MODEL','gpt-4.1-mini'))
+    expected_profile = (local.get('OLLAMA_MODEL','qwen3:4b') if selected == 'ollama'
+                        else local.get('OPENAI_PROFILE_MODEL', local.get('OPENAI_MODEL','gpt-4.1-mini'))
                         if selected == 'openai' else local.get('GEMINI_PROFILE_MODEL','gemini-3.5-flash-lite'))
-    expected_analysis = (local.get('OPENAI_MODEL','gpt-4.1-mini')
+    expected_analysis = (local.get('OLLAMA_MODEL','qwen3:4b') if selected == 'ollama'
+                         else local.get('OPENAI_MODEL','gpt-4.1-mini')
                          if selected == 'openai' else local.get('GEMINI_MODEL','gemini-3.5-flash'))
     if caps.get('profile_model') != expected_profile or caps.get('analysis_model') != expected_analysis:
         raise RuntimeError('Running backend uses different model IDs than .env. Restart python run_local.py first.')
@@ -254,14 +282,14 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
     }
     token = local.get('LIVE_AI_ACCESS_TOKEN', '')
     if len(token) < 16:
-        raise RuntimeError('Local team token missing; run configure_openai.py --enable.')
+        raise RuntimeError('Local team token missing; run your provider configuration script.')
     req = Request(
         f'{backend_url}/api/v1/matching/analyze',
         data=json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json', 'X-Live-Access-Token': token},
         method='POST',
     )
-    with urlopen(req, timeout=245) as response:
+    with urlopen(req, timeout=600) as response:
         result = json.load(response)
     stages = {stage['agent']: stage for stage in result.get('trace', [])}
     for name in ('profile', 'discovery', 'analyst', 'skeptic', 'clarification'):
@@ -381,12 +409,12 @@ def main() -> int:
             list_available_models()
             return 0
         if args.smoke_ai_workflow:
-            if not (args.confirm_free_tier or args.confirm_api_usage):
+            if load_env(ROOT/'.env').get('AI_PROVIDER','gemini') != 'ollama' and not (args.confirm_free_tier or args.confirm_api_usage):
                 raise RuntimeError('Real AI workflow may incur charges; use --confirm-api-usage after reviewing billing settings.')
             smoke_live_agent_workflow(b)
             return 0
         if args.probe_ai:
-            if not (args.confirm_free_tier or args.confirm_api_usage):
+            if load_env(ROOT/'.env').get('AI_PROVIDER','gemini') != 'ollama' and not (args.confirm_free_tier or args.confirm_api_usage):
                 raise RuntimeError('Real AI calls require --confirm-api-usage and may incur charges.')
             probe_provider_models()
             return 0
