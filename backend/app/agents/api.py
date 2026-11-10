@@ -17,9 +17,12 @@ router = APIRouter(prefix='/api/v1/matching', tags=['five-agent matching'])
 
 def model_readiness() -> tuple[bool, str]:
     if not enabled('ENABLE_LIVE_AI'):
-        return False, 'ENABLE_LIVE_AI=false. Run python configure_openai.py --enable, then restart python run_local.py'
+        return False, 'ENABLE_LIVE_AI=false. Set ENABLE_LIVE_AI=true in .env, then restart python run_local.py'
     provider = os.getenv('AI_PROVIDER', 'gemini').strip().lower()
-    if provider == 'openai':
+    if provider == 'ollama':
+        # Model availability is confirmed by Ollama during inference; no cloud credentials.
+        pass
+    elif provider == 'openai':
         if not os.getenv('OPENAI_API_KEY', '').strip():
             return False, 'OPENAI_API_KEY is missing from the backend environment'
         if not enabled('OPENAI_ALLOW_BILLABLE'):
@@ -28,10 +31,10 @@ def model_readiness() -> tuple[bool, str]:
         if not os.getenv('GEMINI_API_KEY', '').strip():
             return False, 'GEMINI_API_KEY is missing from the backend environment'
     else:
-        return False, 'AI_PROVIDER must be gemini or openai'
+        return False, 'AI_PROVIDER must be ollama, gemini or openai'
     if len(os.getenv('LIVE_AI_ACCESS_TOKEN', '')) < 16:
         return False, 'LIVE_AI_ACCESS_TOKEN must be at least 16 characters'
-    return True, ('OpenAI' if provider == 'openai' else 'Gemini') + ' configured locally; a team token is required for model requests'
+    return True, ('Ollama (local)' if provider == 'ollama' else 'OpenAI' if provider == 'openai' else 'Gemini') + ' configured locally; a team token is required for model requests'
 
 @router.get('/capabilities')
 def capabilities():
@@ -41,7 +44,7 @@ def capabilities():
     return {'contract_version':'2.0-A', 'agent_roles':['profile','discovery','analyst','skeptic','clarification'],
         'tools_available':True, 'live_model_enabled':enabled('ENABLE_LIVE_AI'),
         'model_ready':ready,'model_readiness_message':message,
-        'model_provider':'OpenAI' if openai else 'Google Gemini' if provider == 'gemini' else 'Unknown',
+        'model_provider':'Ollama (local)' if provider == 'ollama' else 'OpenAI' if openai else 'Google Gemini' if provider == 'gemini' else 'Unknown',
         'analysis_model':os.getenv('OPENAI_MODEL','gpt-4.1-mini') if openai else AI_ANALYSIS_MODEL,
         'profile_model':os.getenv('OPENAI_PROFILE_MODEL',os.getenv('OPENAI_MODEL','gpt-4.1-mini')) if openai else AI_PROFILE_MODEL,
         'max_studies':3, 'max_model_calls_per_run':9, 'patient_persistence':False,
