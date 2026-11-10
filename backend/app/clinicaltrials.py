@@ -7,6 +7,7 @@ public studies to avoid eight redundant HTTP requests per follow-up answer.
 from __future__ import annotations
 from collections import OrderedDict
 from datetime import datetime, timezone
+import math
 import re
 import time
 import httpx
@@ -51,10 +52,19 @@ def parse_study(study: dict) -> TrialRecord:
     description = p.get('descriptionModule') or {}
     nct = ident['nctId']
     locations: list[str] = []
+    geopoints: list[tuple[float | None, float | None]] = []
     for loc in contacts.get('locations') or []:
         label = ', '.join(filter(None, [loc.get('city'), loc.get('state'), loc.get('country')]))
         if label and label not in locations:
             locations.append(label)
+            point = loc.get('geoPoint') or {}
+            try:
+                lat, lon = float(point['lat']), float(point['lon'])
+                if not math.isfinite(lat) or not math.isfinite(lon) or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                    raise ValueError('Invalid study-site coordinates')
+                geopoints.append((lat, lon))
+            except (KeyError, TypeError, ValueError):
+                geopoints.append((None, None))
     first = status.get('studyFirstPostDateStruct') or {}
     updated = status.get('studyLastUpdatePostDateStruct') or {}
     return TrialRecord(
@@ -88,8 +98,10 @@ def validate_ids(ids: list[str]) -> list[str]:
     return ids
 
 
-async def search_trials(condition: str, limit: int = 80) -> list[TrialRecord]:
-    """Retrieve recruiting study candidates, then rank using our own BM25."""
+async def _search_studies(condition: str, limit: int = 80, *,
+                          geo: tuple[float, float, int] | None = None,
+                          city_query: str | None = None) -> list[TrialRecord]:
+    """Only sends a public disease search term plus optional geographic preference."""
     condition = validate_condition(condition)
     params = {
         'query.cond': condition,
@@ -97,6 +109,13 @@ async def search_trials(condition: str, limit: int = 80) -> list[TrialRecord]:
         'filter.overallStatus': STATUSES,
         'format': 'json',
     }
+    if geo is not None:
+        lat, lon, radius = geo
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180 and radius in (50, 100, 250)):
+            raise ValueError('Invalid geographic search radius')
+        params['filter.geo'] = f'distance({lat:.5f},{lon:.5f},{radius}mi)'
+    if city_query:
+        params['query.locn'] = city_query
     async with httpx.AsyncClient(timeout=22, follow_redirects=False) as client:
         response = await client.get(BASE, params=params)
         response.raise_for_status()
@@ -110,6 +129,22 @@ async def search_trials(condition: str, limit: int = 80) -> list[TrialRecord]:
         _save(parsed)
         studies.append(parsed)
     return studies
+
+
+async def search_trials(condition: str, limit: int = 80) -> list[TrialRecord]:
+    """Broad public-registry study search for patients with no verified geographic radius."""
+    return await _search_studies(condition, limit)
+
+
+async def search_trials_geo(condition: str, lat: float, lon: float, miles: int,
+                            limit: int = 80) -> list[TrialRecord]:
+    """Official registry geofilter: study has a registered site within a radial distance."""
+    return await _search_studies(condition, limit, geo=(lat, lon, miles))
+
+
+async def search_trials_location(condition: str, city: str, limit: int = 80) -> list[TrialRecord]:
+    """Textual city filter when an exact radius cannot be verified."""
+    return await _search_studies(condition, limit, city_query=city)
 
 
 async def fetch_trials_by_ids(ids: list[str]) -> list[TrialRecord]:
