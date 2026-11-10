@@ -11,10 +11,10 @@ def enabled(name: str) -> bool:
 
 # The active provider's model IDs are resolved at backend startup.
 # Legacy Gemini IDs are retained as aliases for offline tests and optional rollback.
-AI_PROVIDER = setting("AI_PROVIDER", "gemini").strip().lower()
-AI_ANALYSIS_MODEL = (setting("OPENAI_MODEL", "gpt-4.1-mini") if AI_PROVIDER == "openai"
+AI_PROVIDER = setting("AI_PROVIDER", "ollama").strip().lower()
+AI_ANALYSIS_MODEL = (setting("OLLAMA_MODEL", "qwen3:4b") if AI_PROVIDER == "ollama" else setting("OPENAI_MODEL", "gpt-4.1-mini") if AI_PROVIDER == "openai"
                      else setting("GEMINI_MODEL", "gemini-3.5-flash"))
-AI_PROFILE_MODEL = (setting("OPENAI_PROFILE_MODEL", setting("OPENAI_MODEL", "gpt-4.1-mini"))
+AI_PROFILE_MODEL = (setting("OLLAMA_MODEL", "qwen3:4b") if AI_PROVIDER == "ollama" else setting("OPENAI_PROFILE_MODEL", setting("OPENAI_MODEL", "gpt-4.1-mini"))
                     if AI_PROVIDER == "openai"
                     else setting("GEMINI_PROFILE_MODEL", "gemini-3.5-flash-lite"))
 GEMINI_MODEL = setting("GEMINI_MODEL", "gemini-3.5-flash")
