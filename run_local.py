@@ -107,152 +107,135 @@ def verify_live_registry(backend_url: str) -> None:
 
 
 def verify_model_readiness(backend_url: str) -> None:
-    """Compare LOCAL ignored .env with RUNNING backend, without disclosing keys."""
+    """Check the *active* provider locally and in the actually running backend."""
     local = load_env(ROOT / '.env')
-    local_enabled = local.get('ENABLE_LIVE_AI', '').strip().lower() in {'true', '1', 'yes', 'on'}
-    local_key = len(local.get('GEMINI_API_KEY', '').strip()) >= 20
-    local_team = len(local.get('LIVE_AI_ACCESS_TOKEN', '').strip()) >= 16
+    active = local.get('AI_PROVIDER', 'gemini').strip().lower()
+    enabled_local = local.get('ENABLE_LIVE_AI', '').strip().lower() in {'true','1','yes','on'}
+    key_name = 'OPENAI_API_KEY' if active == 'openai' else 'GEMINI_API_KEY'
+    key_ok = bool(local.get(key_name, '').strip())
+    token_ok = len(local.get('LIVE_AI_ACCESS_TOKEN', '').strip()) >= 16
+    consent_ok = active != 'openai' or local.get('OPENAI_ALLOW_BILLABLE', '').strip().lower() in {'true','1','yes','on'}
     print('Project root:', ROOT)
     print('Local ignored .env exists:', (ROOT / '.env').exists())
-    print('Local AI enabled:', local_enabled)
-    print('Local Gemini key present:', local_key)
-    print('Local team access token present:', local_team)
+    print('Selected provider:', active)
+    print('Local AI enabled:', enabled_local)
+    print('Local provider key present:', key_ok)
+    print('Explicit API usage permission:', consent_ok)
+    print('Local team access token present:', token_ok)
     try:
         caps = request_json(f'{backend_url}/api/v1/matching/capabilities', timeout=5)
-    except (URLError, HTTPError, TimeoutError, ConnectionError, OSError) as exc:
-        raise RuntimeError('No matching backend was reachable on '+backend_url+
-            '. Run python run_local.py in the first terminal, then retry --check-ai.') from exc
-    roles = caps.get('agent_roles', [])
-    print('Agent roles:', ', '.join(roles))
-    print('Provider:', caps.get('model_provider', 'unconfigured'))
-    server_ready = bool(caps.get('model_ready'))
-    if local_enabled and local_key and local_team and not server_ready:
+    except (URLError, HTTPError, TimeoutError, ConnectionError, OSError):
+        raise RuntimeError('No matching backend was reachable on ' + backend_url +
+                           '. Start python run_local.py in Terminal 1 first.') from None
+    print('Running provider:', caps.get('model_provider', 'unknown'))
+    print('Running analysis model:', caps.get('analysis_model', 'unknown'))
+    if not (enabled_local and key_ok and token_ok and consent_ok):
+        raise RuntimeError('LOCAL CONFIGURATION INCOMPLETE: for OpenAI run '
+                           'python configure_openai.py --enable; then restart the server')
+    expected_provider = 'OpenAI' if active == 'openai' else 'Google Gemini'
+    expected_model = (local.get('OPENAI_MODEL', 'gpt-4.1-mini') if active == 'openai'
+                      else local.get('GEMINI_MODEL', 'gemini-3.5-flash'))
+    if (caps.get('model_provider') != expected_provider or
+        caps.get('analysis_model') != expected_model or not caps.get('model_ready')):
         raise RuntimeError(
-            'STALE BACKEND CONFIGURATION: the local .env is enabled but the RUNNING server reports '
-            + str(caps.get('model_readiness_message', 'Gemini disabled'))
-            + '. Stop python run_local.py in the ORIGINAL server terminal (Ctrl+C), '
-            'check that port 8000 is free, restart python run_local.py, then retry --check-ai. '
-            'In Windows PowerShell, inspect the listener with: '
-            'Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object OwningProcess'
-        )
-    if not (local_enabled and local_key and local_team):
-        raise RuntimeError(
-            'LOCAL CONFIGURATION INCOMPLETE: run python configure_local_ai.py '
-            'with a replacement Gemini key, then restart the server.')
-    if not server_ready:
-        raise RuntimeError('Backend Gemini not ready: '+
-                           str(caps.get('model_readiness_message', 'unknown reason')))
-    print('READY: local .env and running backend both report Gemini configured.')
-    print('Profile model:', caps.get('profile_model'))
-    print('Analysis/skeptic model:', caps.get('analysis_model'))
-    print('This is a CONFIGURATION check, not confirmation that Google inference works.')
-    print('For an explicit provider test after verifying free-tier billing: '
-          'python run_local.py --probe-ai --confirm-free-tier')
+            'STALE BACKEND CONFIGURATION: local .env and running server do not agree. '
+            'Stop old servers with Ctrl+C, free ports 8000/5173, then restart python run_local.py. '
+            'Backend reason: ' + str(caps.get('model_readiness_message', 'unknown')))
+    print('READY: local .env and running backend agree on configured provider.')
+    print('Configuration only; verify actual Analyst and Skeptic inference in the execution trace.')
+    if active == 'openai':
+        print('OpenAI API calls may incur charges; ChatGPT subscription is separate.')
 
 
 def list_available_models() -> None:
-    """List model IDs permitted by the locally configured key, without inference.
-
-    Google AI Studio billing, RPM and daily quota must still be verified
-    separately. Do not print keys, raw URLs with credentials or response bodies.
-    """
+    """List current provider models without making a paid inference request."""
     local = load_env(ROOT / '.env')
-    key = local.get('GEMINI_API_KEY', '').strip()
-    if not key:
-        raise RuntimeError('Missing GEMINI_API_KEY in project .env; run configure_local_ai.py')
-    address = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100'
-    items = []
-    token = ''
-    for _ in range(3):
-        url = address + (('&pageToken=' + token) if token else '')
-        req = Request(url, headers={'x-goog-api-key':key}, method='GET')
+    provider = local.get('AI_PROVIDER', 'gemini').strip().lower()
+    if provider == 'openai':
+        key = local.get('OPENAI_API_KEY', '').strip()
+        if not key:
+            raise RuntimeError('OPENAI_API_KEY missing; run python configure_openai.py --enable')
+        req = Request('https://api.openai.com/v1/models',
+                      headers={'Authorization': 'Bearer ' + key}, method='GET')
         try:
             with urlopen(req, timeout=22) as response:
-                data = json.load(response)
+                models = json.load(response).get('data') or []
         except HTTPError as exc:
-            raise RuntimeError(
-                'Gemini model listing failed (HTTP ' + str(exc.code) +
-                '). Check the private key, its project permissions and API availability.'
-            ) from None
-        except (URLError,TimeoutError,OSError):
-            raise RuntimeError('Cannot reach Gemini model listing; check network connectivity.') from None
-        items.extend(data.get('models') or [])
-        token = data.get('nextPageToken') or ''
-        if not token: break
+            raise RuntimeError('OpenAI model listing failed (HTTP ' + str(exc.code) +
+                               '); no inference was sent') from None
+        supported = sorted({str(item.get('id')) for item in models
+                            if str(item.get('id', '')).startswith('gpt-')})
+        print('OpenAI models listed for this key (listing does not guarantee quota):')
+        for name in supported:
+            print(' ', name)
+        selected = local.get('OPENAI_MODEL', 'gpt-4.1-mini')
+        print('Selected:', selected, '—', 'LISTED' if selected in supported else 'NOT LISTED')
+        return
+    key = local.get('GEMINI_API_KEY', '').strip()
+    if not key:
+        raise RuntimeError('Missing GEMINI_API_KEY in project .env')
+    req = Request('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100',
+                  headers={'x-goog-api-key': key}, method='GET')
+    try:
+        with urlopen(req, timeout=22) as response:
+            data = json.load(response)
+    except HTTPError as exc:
+        raise RuntimeError('Gemini model listing failed (HTTP ' + str(exc.code) + ')') from None
     supported = sorted({str(m.get('name','')).removeprefix('models/')
-        for m in items if 'generateContent' in m.get('supportedGenerationMethods',[])
+        for m in data.get('models',[]) if 'generateContent' in m.get('supportedGenerationMethods',[])
         and str(m.get('name','')).startswith('models/gemini-')})
-    configured = (local.get('GEMINI_PROFILE_MODEL','gemini-3.5-flash-lite'),
-                  local.get('GEMINI_MODEL','gemini-3.5-flash'))
-    print('Models supporting generateContent for this API key:')
     for name in supported:
         print(' ',name)
-    if not supported:
-        raise RuntimeError('No compatible Gemini text models were returned; check API access.')
-    for label,name in zip(('Profile model','Analyst/Skeptic model'),configured):
-        print(label + ': ' + name + ' — ' +
-              ('LISTED' if name in supported else 'NOT LISTED for this key'))
-    print('The listing checks access metadata only, not free-tier quota or a successful inference.')
-    print('If a configured model is NOT LISTED, select a supported free-tier model in .env,')
-    print('then restart python run_local.py and run --probe-ai --confirm-free-tier.')
+    selected = local.get('GEMINI_MODEL','gemini-3.5-flash')
+    print('Selected:', selected, '—', 'LISTED' if selected in supported else 'NOT LISTED')
 
 
 def probe_provider_models() -> None:
-    """Deliberate real Gemini smoke test on NON-PATIENT synthetic JSON, never credentials."""
+    """Make ONE explicit real inference request using selected provider (may incur charges)."""
     import asyncio
     env = load_env(ROOT / '.env')
-    if env.get('ENABLE_LIVE_AI', '').strip().lower() not in {'true', '1', 'yes', 'on'}:
-        raise RuntimeError('Local .env has ENABLE_LIVE_AI disabled; run configure_local_ai.py')
-    if not env.get('GEMINI_API_KEY', '').strip():
-        raise RuntimeError('Missing local Gemini API key; run configure_local_ai.py')
-    # Load only into this local process. Never print the API key or team token.
+    if env.get('ENABLE_LIVE_AI', '').strip().lower() not in {'true','1','yes','on'}:
+        raise RuntimeError('Live AI disabled: run python configure_openai.py --enable')
+    if env.get('AI_PROVIDER', 'gemini') == 'openai' and env.get('OPENAI_ALLOW_BILLABLE', '').lower() != 'true':
+        raise RuntimeError('OpenAI API requires explicit OPENAI_ALLOW_BILLABLE=true')
     os.environ.update(env)
     sys.path.insert(0, str(BACKEND))
-    from app.agents.budget import AgentBudget
-    from app.settings import GEMINI_MODEL, GEMINI_PROFILE_MODEL
-    budget = AgentBudget(maximum=2)
-
+    from app.llm import generate_json
+    model = env.get('OPENAI_MODEL','gpt-4.1-mini') if env.get('AI_PROVIDER') == 'openai' else env.get('GEMINI_MODEL','gemini-3.5-flash')
     async def check():
-        unique_models = list(dict.fromkeys((GEMINI_PROFILE_MODEL, GEMINI_MODEL)))
-        for model in unique_models:
-            try:
-                response = await budget.generate(
-                    model=model,
-                    system='Connectivity test only. Return exactly a JSON object with ok set to true.',
-                    payload={'purpose': 'health check', 'synthetic': True})
-                if response.get('ok') is not True:
-                    raise RuntimeError('Provider returned JSON but not the requested test schema.')
-            except Exception as exc:
-                # httpx can include sensitive request details in its exception;
-                # report only a small safe class and HTTP status, not raw body/URL.
-                status = getattr(getattr(exc, 'response', None), 'status_code', None)
-                raise RuntimeError(
-                    f'Gemini probe failed for model {model} ({type(exc).__name__}'
-                    + (f', HTTP {status}' if status else '') +
-                    '). Check model availability, free-tier quota, key validity and internet access.'
-                ) from None
-            print('PASS: real Gemini JSON response from', model)
-        print('PASS: provider connectivity confirmed; this did not test the five-agent workflow.')
-
+        try:
+            result = await generate_json(
+                model=model,
+                system='JSON output only. Return a JSON object containing the boolean key ok.',
+                payload={'purpose':'synthetic connectivity test','ok':True})
+            if result.get('ok') is not True:
+                raise RuntimeError('Provider responded without required JSON output')
+        except Exception as exc:
+            status = getattr(getattr(exc,'response',None),'status_code',None)
+            raise RuntimeError('Active provider inference failed (' + type(exc).__name__ +
+                               (f', HTTP {status}' if status else '') + ')') from None
+        print('PASS: selected provider returned real JSON using model',model)
+        print('This did not run criterion-level Analyst and Skeptic validation.')
     asyncio.run(check())
-
 
 
 def smoke_live_agent_workflow(backend_url: str) -> None:
     """Opt-in single-command live smoke test against one public NCT study.
 
-    Makes REAL Gemini requests using only a fictional profile and the local
+    Makes REAL AI provider requests using only a fictional profile and the local
     server-side team token. Does not print credentials, payloads or patient facts.
-    Requires a running backend and explicit user free-tier confirmation.
+    Requires a running backend and explicit API usage confirmation; requests may be billable.
     """
     verify_model_readiness(backend_url)
     local = load_env(ROOT / '.env')
     caps = request_json(f'{backend_url}/api/v1/matching/capabilities')
-    if (caps.get('profile_model') != local.get('GEMINI_PROFILE_MODEL', 'gemini-3.5-flash-lite')
-        or caps.get('analysis_model') != local.get('GEMINI_MODEL', 'gemini-3.5-flash')):
-        raise RuntimeError(
-            'Running backend is using different model IDs than .env. Restart python run_local.py first.'
-        )
+    selected = local.get('AI_PROVIDER', 'gemini').strip().lower()
+    expected_profile = (local.get('OPENAI_PROFILE_MODEL', local.get('OPENAI_MODEL','gpt-4.1-mini'))
+                        if selected == 'openai' else local.get('GEMINI_PROFILE_MODEL','gemini-3.5-flash-lite'))
+    expected_analysis = (local.get('OPENAI_MODEL','gpt-4.1-mini')
+                         if selected == 'openai' else local.get('GEMINI_MODEL','gemini-3.5-flash'))
+    if caps.get('profile_model') != expected_profile or caps.get('analysis_model') != expected_analysis:
+        raise RuntimeError('Running backend uses different model IDs than .env. Restart python run_local.py first.')
     profile = request_json(f'{backend_url}/api/v1/intake/profile', {
         'synthetic': True,
         'answers': {
@@ -271,7 +254,7 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
     }
     token = local.get('LIVE_AI_ACCESS_TOKEN', '')
     if len(token) < 16:
-        raise RuntimeError('Local team token missing; run configure_local_ai.py.')
+        raise RuntimeError('Local team token missing; run configure_openai.py --enable.')
     req = Request(
         f'{backend_url}/api/v1/matching/analyze',
         data=json.dumps(payload).encode('utf-8'),
@@ -302,7 +285,7 @@ def smoke_live_agent_workflow(backend_url: str) -> None:
     assert result.get('model_calls', 10) <= 9, 'Agent inference call budget exceeded'
     if not result.get('assessments') or not result['assessments'][0].get('skeptic'):
         raise RuntimeError('Independent criterion findings missing from response')
-    print('PASS: REAL Gemini Analyst and independent Skeptic completed source-grounded criterion reviews')
+    print('PASS: REAL AI provider Analyst and independent Skeptic completed source-grounded criterion reviews')
     print('Official NCT study:', result['trials'][0]['nct_id'],
           '| assessed criteria:', len(result['assessments'][0]['criteria']),
           '| total model attempts:', result['model_calls'])
@@ -370,11 +353,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Start and interaction-test ClinicalTrial Matcher')
     parser.add_argument('--check', action='store_true', help='Test existing frontend/backend including custom profile submissions')
     parser.add_argument('--check-live', action='store_true', help='Test REAL ClinicalTrials.gov API and follow-up pipeline; requires internet and an already running backend')
-    parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking Gemini (backend must be running)')
-    parser.add_argument('--list-ai-models', action='store_true', help='List model IDs available to your local Gemini key; no inference calls')
-    parser.add_argument('--probe-ai', action='store_true', help='OPT-IN: call real Gemini model(s) with a non-patient JSON probe')
+    parser.add_argument('--check-ai', action='store_true', help='Check configured model names and local readiness without invoking AI (backend must be running)')
+    parser.add_argument('--list-ai-models', action='store_true', help='List available model IDs for selected provider; no inference calls')
+    parser.add_argument('--probe-ai', action='store_true', help='OPT-IN: call active AI provider with synthetic non-patient JSON (potential API charges)')
     parser.add_argument('--smoke-ai-workflow', action='store_true', help='OPT-IN: run full five-agent workflow using one fictional patient and live registry study')
-    parser.add_argument('--confirm-free-tier', action='store_true', help='Confirm that YOU verified the Google project has an eligible free tier with billing disabled')
+    parser.add_argument('--confirm-free-tier', action='store_true', help='Legacy explicit API-use confirmation flag')
+    parser.add_argument('--confirm-api-usage', action='store_true', help='Explicitly acknowledge API calls may consume credits or incur charges')
     parser.add_argument('--no-browser', action='store_true', help='Do not open the browser')
     parser.add_argument('--no-install', action='store_true', help='Fail rather than install missing free dependencies')
     parser.add_argument('--backend-port', type=int, default=8000)
@@ -397,13 +381,13 @@ def main() -> int:
             list_available_models()
             return 0
         if args.smoke_ai_workflow:
-            if not args.confirm_free_tier:
-                raise RuntimeError('Live Gemini workflow test requires --confirm-free-tier after verifying billing is disabled.')
+            if not (args.confirm_free_tier or args.confirm_api_usage):
+                raise RuntimeError('Real AI workflow may incur charges; use --confirm-api-usage after reviewing billing settings.')
             smoke_live_agent_workflow(b)
             return 0
         if args.probe_ai:
-            if not args.confirm_free_tier:
-                raise RuntimeError('Real Gemini calls are disabled unless you explicitly use --confirm-free-tier after verifying billing is disabled.')
+            if not (args.confirm_free_tier or args.confirm_api_usage):
+                raise RuntimeError('Real AI calls require --confirm-api-usage and may incur charges.')
             probe_provider_models()
             return 0
         ensure_dependencies(args.no_install)

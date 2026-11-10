@@ -11,7 +11,7 @@ def test_openai_ready_without_gemini_key(monkeypatch):
     monkeypatch.delenv('GEMINI_API_KEY',raising=False)
     ready, message=model_readiness()
     assert ready is True
-    assert 'Openai' in message
+    assert 'OpenAI' in message
     data=capabilities()
     assert data['model_ready'] is True
     assert data['model_provider']=='OpenAI'

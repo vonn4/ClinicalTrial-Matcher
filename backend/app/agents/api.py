@@ -7,7 +7,7 @@ from ..clinicaltrials import fetch_trials_by_ids
 from ..reassessment import reassess
 from ..sandbox import all_sandbox_trials
 from ..schemas import Mode
-from ..settings import enabled, GEMINI_MODEL, GEMINI_PROFILE_MODEL
+from ..settings import enabled, AI_ANALYSIS_MODEL, AI_PROFILE_MODEL
 from ..llm import ModelUnavailable
 from .contracts import AgentRunRequest, AgentRunResponse, AgentClarifyRequest
 from .budget import AgentBudgetExceeded
@@ -17,7 +17,7 @@ router = APIRouter(prefix='/api/v1/matching', tags=['five-agent matching'])
 
 def model_readiness() -> tuple[bool, str]:
     if not enabled('ENABLE_LIVE_AI'):
-        return False, 'ENABLE_LIVE_AI is false in the backend environment'
+        return False, 'ENABLE_LIVE_AI=false. Run python configure_openai.py --enable, then restart python run_local.py'
     provider = os.getenv('AI_PROVIDER', 'gemini').strip().lower()
     if provider == 'openai':
         if not os.getenv('OPENAI_API_KEY', '').strip():
@@ -31,7 +31,7 @@ def model_readiness() -> tuple[bool, str]:
         return False, 'AI_PROVIDER must be gemini or openai'
     if len(os.getenv('LIVE_AI_ACCESS_TOKEN', '')) < 16:
         return False, 'LIVE_AI_ACCESS_TOKEN must be at least 16 characters'
-    return True, f'{provider.title()} configured locally; a team token is required for model requests'
+    return True, ('OpenAI' if provider == 'openai' else 'Gemini') + ' configured locally; a team token is required for model requests'
 
 @router.get('/capabilities')
 def capabilities():
@@ -42,8 +42,8 @@ def capabilities():
         'tools_available':True, 'live_model_enabled':enabled('ENABLE_LIVE_AI'),
         'model_ready':ready,'model_readiness_message':message,
         'model_provider':'OpenAI' if openai else 'Google Gemini' if provider == 'gemini' else 'Unknown',
-        'analysis_model':os.getenv('OPENAI_MODEL', 'gpt-4.1-mini') if openai else GEMINI_MODEL,
-        'profile_model':os.getenv('OPENAI_MODEL', 'gpt-4.1-mini') if openai else GEMINI_PROFILE_MODEL,
+        'analysis_model':os.getenv('OPENAI_MODEL','gpt-4.1-mini') if openai else AI_ANALYSIS_MODEL,
+        'profile_model':os.getenv('OPENAI_PROFILE_MODEL',os.getenv('OPENAI_MODEL','gpt-4.1-mini')) if openai else AI_PROFILE_MODEL,
         'max_studies':3, 'max_model_calls_per_run':9, 'patient_persistence':False,
         'notice':'Configured model names do not prove successful inference. Check the execution trace after running.'}
 
