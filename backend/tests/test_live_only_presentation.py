@@ -53,7 +53,7 @@ def test_five_agent_workflow_runs_on_search_without_redundant_play_button():
     assert 'Run five-agent workflow' not in trace_src
     assert 'runFiveAgents(' not in trace_src
     assert '<button' not in trace_src
-    assert 'Latest execution' in trace_src
+    assert 'Execution summary' in trace_src
     assert app_src.count('const settings=selectedAgentSettings();') == 2
     assert app_src.count('const result=await runFiveAgents(') == 2
     assert '<AgentSetup depth={analysisDepth}' in app_src
