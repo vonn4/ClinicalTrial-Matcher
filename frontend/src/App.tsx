@@ -8,8 +8,8 @@ import GuidedIntake from './components/GuidedIntake';
 import TrialFollowups from './components/TrialFollowups';
 import AgentWorkflow from './components/AgentWorkflow';
 import AgentSetup from './components/AgentSetup';
-import type {AgentDepth,AgentResult,AgentSettings} from './lib/agentApi';
-import {runFiveAgents,clarifyFiveAgents} from './lib/agentApi';
+import type {AgentDepth,AgentResult,AgentSettings,MatchingProgress} from './lib/agentApi';
+import {runFiveAgents,clarifyFiveAgents,getMatchingProgress} from './lib/agentApi';
 
 const STATUS_LABEL:Record<Summary,string>={potential_match:'Potential match',needs_information:'Needs more information',identified_conflict:'Eligibility conflict',clinical_review:'Clinical review required'};
 function emptyPatient():PatientProfile{
@@ -122,6 +122,10 @@ export default function App(){
   const [selected,setSelected]=useState('');
   const [saved,setSaved]=useState<string[]>(getStorage);
   const [busy,setBusy]=useState(false);
+  const [runId,setRunId]=useState<string|null>(null);
+  const [matchingProgress,setMatchingProgress]=useState<MatchingProgress|null>(null);
+  const [searchSeconds,setSearchSeconds]=useState(0);
+  const [maxStudies,setMaxStudies]=useState(1);
   const [error,setError]=useState('');
   const [connection,setConnection]=useState('Checking public registry');
   const [registryStatus,setRegistryStatus]=useState<{connected:boolean;api_version:string;data_timestamp:string}|null>(null);
@@ -139,6 +143,31 @@ export default function App(){
   const [teamToken,setTeamToken]=useState('');
   const [agentResult,setAgentResult]=useState<AgentResult|null>(null);
   const [agentSettings,setAgentSettings]=useState<AgentSettings|null>(null);
+  // Actual server-side stage state, not an invented percent-complete animation.
+  // The timer also covers the initial patient-profile request.
+  useEffect(()=>{
+    if(!busy||!runId)return;
+    let active=true;
+    const started=Date.now();
+    const refresh=()=>{
+      if(!active)return;
+      setSearchSeconds(Math.floor((Date.now()-started)/1000));
+      void getMatchingProgress(runId).then(data=>{if(active)setMatchingProgress(data);})
+        .catch(()=>{/* A new run is briefly absent until the backend accepts it. */});
+    };
+    refresh();
+    const timer=window.setInterval(refresh,1500);
+    return ()=>{active=false;window.clearInterval(timer);};
+  },[busy,runId]);
+  const phaseLabel:Record<string,string>={
+    queued:'Starting workflow',profile:'Building patient profile',
+    discovery:'Searching official trials',analyst:'Running eligibility Analyst',
+    skeptic:'Running independent Skeptic',clarification:'Preparing follow-up questions',
+    complete:'Complete',failed:'Stopped'
+  };
+  const progressText=busy?
+    `${matchingProgress?.completed??0}/5 stages finished · ${phaseLabel[matchingProgress?.phase??'queued']??'Preparing workflow'} · ${searchSeconds}s elapsed. Local AI may take several minutes.`:'';
+
   useEffect(()=>{
     let active=true;
     if(analysis.trials.length===0){setFollowupPlan(null);setReview(null);setFollowupBusy(false);setFollowupError('');return;}
@@ -218,7 +247,7 @@ export default function App(){
     if(analysisDepth==='model'&&!teamToken.trim()){
       throw new Error('Enter your local team access token before selecting model-assisted analysis.');
     }
-    return {depth:analysisDepth,token:analysisDepth==='model'?teamToken:''};
+    return {depth:analysisDepth,token:analysisDepth==='model'?teamToken:'',maxStudies};
   }
   function finishAgentRun(result:AgentResult,settings:AgentSettings){
     if(result.mode!=='live')throw new Error('Only official live studies are supported in the dashboard.');
@@ -231,24 +260,26 @@ export default function App(){
     setLiveSearched(result.mode==='live');setConnection('Five-role matching workflow complete');
   }
   async function runGuidedSearch(submission:IntakeSubmission){
+    const newRunId=crypto.randomUUID();setRunId(newRunId);setMatchingProgress(null);setSearchSeconds(0);
     setBusy(true);setError('');setAgentResult(null);setAgentSettings(null);setReview(null);setChangedCriteria([]);
     try{
       const built=await buildIntakeProfile(submission);
       const settings=selectedAgentSettings();
-      const result=await runFiveAgents(built,mode,settings);
+      const result=await runFiveAgents(built,mode,settings,newRunId);
       finishAgentRun(result,settings);
     }catch(e){setError(e instanceof Error?e.message:'Guided intake failed');}
     finally{setBusy(false);}
   }
   async function runSearch(){
     if(!text.trim()){setError('Enter a fictional patient description containing a medical condition.');return;}
+    const newRunId=crypto.randomUUID();setRunId(newRunId);setMatchingProgress(null);setSearchSeconds(0);
     setBusy(true);setError('');setAgentResult(null);setAgentSettings(null);
     setReview(null);setChangedCriteria([]);
     try{
       const parsed=await parseProfile(text,'live');
       if(!parsed.diagnosis)throw new Error('The condition could not be identified. Use Guided intake to enter the exact condition.');
       const settings=selectedAgentSettings();
-      const result=await runFiveAgents(parsed,'live',settings);
+      const result=await runFiveAgents(parsed,'live',settings,newRunId);
       finishAgentRun(result,settings);
     }catch(e){setError(e instanceof Error?e.message:'Official registry search failed');}
     finally{setBusy(false);}
@@ -258,7 +289,8 @@ export default function App(){
     {page==='discover'&&<><section className="intro-heading"><div><h2>Describe a patient</h2><p>We'll search for trials relevant to the condition you enter.</p></div></section>
       {mode==='live'&&<div className="registry-banner" role="status"><div><strong>ClinicalTrials.gov search</strong><p>Live study records; some results may be broad registries rather than disease-specific trials.</p></div><div className="registry-meta">{registryStatus?<><span className="registry-ok">Registry connected · API {registryStatus.api_version}</span><span>Registry updated {registryStatus.data_timestamp.replace('T',' ').slice(0,16)} UTC</span></>:registryError?<span className="registry-warning">{registryError}</span>:<span>Checking official registry connection…</span>}</div></div>}
       <AgentSetup depth={analysisDepth} onDepthChange={setAnalysisDepth}
-        token={teamToken} onTokenChange={setTeamToken} disabled={busy||answerBusy}/>
+        token={teamToken} onTokenChange={setTeamToken} disabled={busy||answerBusy}
+        maxStudies={maxStudies} onMaxStudiesChange={setMaxStudies}/>
       <div className="intake-method-switch" role="group" aria-label="Profile intake method">
         <div><strong>Patient details</strong></div>
         <div className="intake-method-buttons">
@@ -266,11 +298,11 @@ export default function App(){
           <button className={intakeMode==='quick'?'active':''} onClick={()=>changeIntakeMode('quick')}>Quick description</button>
         </div>
       </div>
-      {intakeMode==='guided'?<GuidedIntake busy={busy} onSearch={runGuidedSearch}/>:<section className="patient-input panel">
+      {intakeMode==='guided'?<GuidedIntake busy={busy} onSearch={runGuidedSearch} progressText={progressText}/>:<section className="patient-input panel">
         <div className="input-head"><div><label htmlFor="patient">Fictional patient description</label></div></div>
         <textarea id="patient" value={text} onChange={e=>setText(e.target.value)}
           rows={3} maxLength={3000} placeholder="Describe a fictional patient, including their condition, age, relevant medical history, and known test results."/>
-      <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy||!text.trim()}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div></section>}
+      <div className="input-actions"><div className="extracted-tags"><span><Check size={13}/> {profile.age??'Unknown'} years</span><span><Check size={13}/> {profile.diagnosis||'Diagnosis needed'}</span>{profile.stage&&<span>{profile.stage}</span>}</div><button className="primary-button" onClick={runSearch} disabled={busy||!text.trim()}>{busy?<RefreshCw className="spin" size={16}/>:<Search size={17}/>} {busy?'Processing...':'Search ClinicalTrials.gov'} <ArrowRight size={15}/></button></div>{busy&&<p className="active-progress" role="status">{progressText}</p>}</section>}
       {error&&<div className="error-alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={15}/></button></div>}
       {liveSearched&&analysis.trials.length===0&&<div className="live-action" role="status"><Info size={17}/><div><strong>{agentResult?.trace.find(x=>x.agent==='discovery')?.details.geographic_radius_applied===true?'No matching recruiting studies found within the selected travel radius.':`No directly documented studies found for ${analysis.profile.diagnosis}.`}</strong>
          <p>{agentResult?.trace.find(x=>x.agent==='discovery')?.details.geographic_radius_applied===true?'The official registry returned no matching records inside the verified straight-line radius. Increase travel distance or search another location.':'Some broader indexed results may exist, but we do not present them as confirmed disease matches. Try a recognized diagnosis or synonym.'}</p>
