@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from ..schemas import Mode, PatientProfile
 from .contracts import AgentRunRequest, AgentRunResponse, AgentTrace
+from .progress import mark_stage, finish_run
 from .budget import AgentBudget
 from .model_errors import explain_model_error
 from . import profile_agent, discovery_agent, analyst_agent, skeptic_agent, clarification_agent
@@ -27,6 +28,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
     budget = AgentBudget(maximum=9)
     trace: list[AgentTrace] = []
 
+    mark_stage(request.run_id, 'profile')
     t=time.perf_counter(); calls=budget.calls
     try:
         profile, meta = await profile_agent.execute(request.profile, model=use_model, budget=budget)
@@ -41,6 +43,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         'Canonical facts rebuilt; model suggestions never overwrite confirmed answers.' +
         (' Model unavailable; used verified input only.' if fallback else ''),t,calls,budget,meta))
 
+    mark_stage(request.run_id, 'discovery')
     t=time.perf_counter();calls=budget.calls
     try:
         studies,meta=await discovery_agent.execute(profile,request.mode,count=(request.max_studies if request.study_ids else 12),
@@ -65,6 +68,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
 
     # Broad candidate display, but no more than three agent-reviewed studies.
     shortlist = studies[:request.max_studies]
+    mark_stage(request.run_id, 'analyst')
     t=time.perf_counter();calls=budget.calls
     try:
         primary,meta=await analyst_agent.execute(profile,shortlist,model=use_model,budget=budget)
@@ -78,6 +82,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         'Source-linked preliminary criterion judgments; complex or unsupported rules remain unresolved.'+
         (' Model failed; deterministic review used.' if fallback else ''),t,calls,budget,meta))
 
+    mark_stage(request.run_id, 'skeptic')
     t=time.perf_counter();calls=budget.calls
     try:
         reviewed,meta=await skeptic_agent.execute(profile,shortlist,primary,model=use_model,budget=budget)
@@ -92,6 +97,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
          'Deterministic source-integrity check only; independent model review NOT performed.'),
         t,calls,budget,meta))
 
+    mark_stage(request.run_id, 'clarification')
     t=time.perf_counter();calls=budget.calls
     try:
         followups,meta=await clarification_agent.execute(profile,shortlist,model=use_model,budget=budget)
@@ -125,6 +131,7 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
             warnings.append(stage.agent + ': ' + str(stage.details['model_error']) +
                             (f" (HTTP {stage.details['model_http_status']})" if 'model_http_status' in stage.details else ''))
     caveat = (' Partial-model limitations: ' + '; '.join(warnings) + '.' if warnings else '')
+    finish_run(request.run_id)
     return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=reviewed,
         followups=followups,trace=trace,model_calls=budget.calls,
         candidate_count=int(trace[1].details.get('candidate_count',len(studies))),
