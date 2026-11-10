@@ -52,7 +52,7 @@ def requires_approval_age_review(criterion: Criterion) -> bool:
         return False
     source = criterion.source_text.lower()
     return bool(re.search(
-        r'\\b(?:younger|under|below|less than)\\b.{0,90}\\b(?:age approved|approved age|minimum approved age|age authorized|authorized age|age licensed)\\b',
+        r'\b(?:younger|under|below|less than)\b.{0,90}\b(?:age approved|approved age|minimum approved age|age authorized|authorized age|age licensed)\b',
         source,
     ))
 
