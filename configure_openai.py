@@ -32,6 +32,12 @@ def update_openai_settings(original: str, updates: dict[str, str]) -> str:
     return "\n".join(kept).rstrip("\n") + "\n"
 
 
+def valid_openai_key(key: str) -> bool:
+    """Reject placeholders but allow legitimate OpenAI project and service keys."""
+    return (bool(re.fullmatch(r"sk-[A-Za-z0-9_-]{15,256}", key))
+            and not key.lower().startswith(("sk-your", "sk-paste", "sk-replace", "sk-example")))
+
+
 def configure() -> None:
     path = ROOT / ".env"
     ignore = ROOT / ".gitignore"
@@ -40,12 +46,13 @@ def configure() -> None:
     original = path.read_text(encoding="utf-8") if path.exists() else (ROOT / ".env.example").read_text(encoding="utf-8")
     old = read_settings(original)
     key = old.get("OPENAI_API_KEY", "").strip()
-    if not key:
+    if not valid_openai_key(key):
+        print("No valid-looking local OpenAI key found. Enter a project API key privately.")
         if not __import__("sys").stdin.isatty():
             raise RuntimeError("Run interactively in a VS Code terminal to enter your OpenAI key privately")
-        key = getpass.getpass("OpenAI API key (hidden, never stored in GitHub): ").strip()
-    if not re.fullmatch(r"sk-[A-Za-z0-9_-]{15,256}", key):
-        raise ValueError("Invalid OpenAI API key format; generate a project key in OpenAI Platform")
+        key = getpass.getpass("OpenAI API key (hidden): ").strip()
+    if not valid_openai_key(key):
+        raise ValueError("OpenAI key is missing or a placeholder. Enter a valid sk-... project key locally.")
     token = old.get("LIVE_AI_ACCESS_TOKEN", "")
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,256}", token):
         token = secrets.token_urlsafe(32)
