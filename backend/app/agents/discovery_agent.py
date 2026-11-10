@@ -4,8 +4,9 @@ Expanded terms are *search probes*, never inferred additional patient diagnoses.
 """
 import asyncio
 import re
-from ..clinicaltrials import search_trials, fetch_trials_by_ids
+from ..clinicaltrials import search_trials, search_trials_geo, search_trials_location, fetch_trials_by_ids
 from ..ranking import rank_trials
+from ..geo import resolve_city, travel_radius
 from ..condition_relevance import filter_condition_matches, explain_condition_match
 from ..sandbox import sandbox_search, all_sandbox_trials
 from ..schemas import Mode, PatientProfile, TrialRecord
@@ -67,8 +68,30 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
             # failure still propagates and never generates synthetic studies.
             model_failed = True
     queries = [condition] + suggestions
-    # Independent public-record calls; the patient profile is NEVER sent upstream.
-    responses = await asyncio.gather(*(search_trials(q, limit=80) for q in queries), return_exceptions=True)
+    radius = travel_radius(profile)
+    origin = await resolve_city(profile.location) if radius and profile.location else None
+    geographic_filter = bool(radius and origin)
+    city_filter = None
+    if profile.location and not geographic_filter and (radius or any(
+        f.field == 'travel' and f.value == 'Local only' for f in profile.facts
+    )):
+        # City-only fallback: the website must NOT claim that a mile radius
+        # was applied when coordinates could not be verified.
+        city_filter = profile.location.split(',')[0].strip()
+        if not re.fullmatch(r"[A-Za-z .'-]{2,70}", city_filter):
+            city_filter = None
+    # Registry sees only the search term and a city/radius, never patient facts.
+    if geographic_filter:
+        responses = await asyncio.gather(*(
+            search_trials_geo(q, origin[0], origin[1], radius, limit=80)
+            for q in queries), return_exceptions=True)
+    elif city_filter:
+        responses = await asyncio.gather(*(
+            search_trials_location(q, city_filter, limit=80)
+            for q in queries), return_exceptions=True)
+    else:
+        responses = await asyncio.gather(*(
+            search_trials(q, limit=80) for q in queries), return_exceptions=True)
     if isinstance(responses[0], Exception):
         raise responses[0]  # the primary official search is required
     dedup: dict[str, TrialRecord] = {}
@@ -81,11 +104,17 @@ async def execute(profile: PatientProfile, mode: Mode, *, count: int, selected_i
             if study.source == 'clinicaltrials.gov':
                 dedup[study.nct_id] = study
     matched = filter_condition_matches(condition, list(dedup.values()))
-    ranked = rank_trials(profile, matched)
+    ranked = rank_trials(profile, matched, origin=origin, radius_miles=radius if geographic_filter else None)
     # Strongest source evidence first; BM25 breaks ties within each evidence tier.
     priority={'listed_condition':0,'documented_synonym':1,'text_mention':2}
     ranked.sort(key=lambda t:(priority.get(t.match_type,3),-t.relevance_score,t.nct_id))
+    location_status = ('Verified official geographic filter: ' + str(radius) + ' straight-line miles from ' +
+                       profile.location + '. Road travel not verified.' if geographic_filter else
+                       'City text search only: the requested mile radius could not be verified.' if city_filter else
+                       'No geographic radius filter applied.')
     return ranked[:count], {'candidate_count': len(dedup), 'matched_count': len(ranked),
         'filtered_unrelated': len(dedup)-len(matched), 'queries': len(queries),
+        'geographic_radius_applied': geographic_filter,
+        'location_filter_status': location_status,
         'failed_probes': failed_probes, 'model_invoked': called, 'model_fallback': model_failed,
         **model_error}
