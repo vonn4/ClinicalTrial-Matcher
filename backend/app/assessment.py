@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from .schemas import PatientProfile,TrialRecord,CriterionAssessment,SkepticFinding,TrialAssessment,Criterion
 from .criteria import extract_criteria,validate_evidence
 from .llm import generate_json,ModelUnavailable
-from .settings import GEMINI_MODEL
+from .settings import AI_ANALYSIS_MODEL
 
 class LLMJudgment(BaseModel):
     criterion_id: str
@@ -31,7 +31,7 @@ Do not omit or invent criterion IDs. Never quote evidence not present in the sou
 
 async def _judgments(profile:PatientProfile,criteria:list[Criterion],independent:bool=False)->JudgmentBatch:
     system=PROMPT_COMMON+(" Independently form your own judgment without access to the first agent's output. Find overlooked exclusions." if independent else "")
-    response=await generate_json(model=GEMINI_MODEL,system=system,payload={
+    response=await generate_json(model=AI_ANALYSIS_MODEL,system=system,payload={
         'patient_description':profile.description,'structured_patient':profile.model_dump(exclude={'facts'}),
         'criteria':[{'id':c.id,'kind':c.kind,'source_text':c.source_text} for c in criteria]
     })
