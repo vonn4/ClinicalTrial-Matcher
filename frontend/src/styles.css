@@ -175,3 +175,7 @@
 .followup-compact{padding:10px 16px;margin:14px 0}
 .followup-compact .followup-reason-toggle{margin:0}
 .followup-compact .followup-source-list{margin-top:8px}
+
+/* Real stage progress while a CPU-hosted Ollama model is busy. */
+.active-progress{display:flex;align-items:center;gap:9px;padding:11px 13px;margin:12px 0 0;border:1px solid #cde4de;border-radius:8px;background:#eff8f4;color:#28596d;font-size:12px;line-height:1.5}
+.active-progress svg{flex-shrink:0}
