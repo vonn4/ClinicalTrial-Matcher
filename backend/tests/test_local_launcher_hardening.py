@@ -91,3 +91,15 @@ def test_list_ai_models_is_read_only_and_does_not_print_key(fake_configuration,m
     assert 'A'*35 not in out
     assert len(seen)==1 and seen[0].get_method()=='GET'
     assert any(k.lower()=='x-goog-api-key' for k,v in seen[0].header_items())
+
+
+def test_live_workflow_smoke_requires_free_tier_opt_in():
+    import subprocess
+    import sys
+    from pathlib import Path
+    cli = Path(__file__).resolve().parents[2] / "run_local.py"
+    completed = subprocess.run(
+        [sys.executable, str(cli), "--smoke-ai-workflow"],
+        capture_output=True, text=True, timeout=10)
+    assert completed.returncode != 0
+    assert "--confirm-free-tier" in completed.stderr
