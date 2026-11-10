@@ -48,6 +48,9 @@ def _parse_city(value: str | None) -> tuple[str, str] | None:
     parts = [p.strip() for p in value.split(",")]
     if len(parts) not in (2, 3) or any(not p for p in parts):
         return None
+    if len(parts) == 3 and parts[2].strip().lower() not in {'united states', 'usa', 'us'}:
+        # Do not silently resolve an input in the wrong country.
+        return None
     if not re.fullmatch(r"[\w .'-]+", parts[0]) or not re.fullmatch(r"[\w .'-]+", parts[1]):
         return None
     return parts[0], parts[1]
@@ -72,7 +75,8 @@ async def resolve_city(value: str | None) -> tuple[float, float] | None:
                 "name": f"{city}, {region}", "count": 10, "language": "en", "format": "json"
             })
             response.raise_for_status()
-            options = response.json().get("results") or []
+            payload = response.json()
+            options = payload.get("results") or [] if isinstance(payload, dict) else []
         exact = [
             candidate for candidate in options
             if str(candidate.get("name", "")).strip().casefold() == city.casefold()
