@@ -34,6 +34,7 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
             evidence_ok = all(verifies_original_criterion(trial, c) for c in criteria_for_trial(trial))
             result = current.model_copy(deep=True)
             if current.provenance == 'live_llm':
+                result.review_basis = 'model_analyst_only'
                 # Missing independent review must NEVER conceal an already identified
                 # inclusion contradiction or exclusion trigger. Keep the conflict
                 # warning while clearly marking independent review as incomplete.
@@ -60,6 +61,7 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
         result.skeptic = flags
         result.summary = summary
         result.unresolved = unresolved
+        result.review_basis = 'model_and_skeptic'
         reconciled.append(result)
         checked += 1
     return reconciled, {'model_invoked': checked > 0, 'independent_trials': checked,

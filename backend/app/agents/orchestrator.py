@@ -131,6 +131,9 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         if stage.details.get('model_error'):
             warnings.append(stage.agent + ': ' + str(stage.details['model_error']) +
                             (f" (HTTP {stage.details['model_http_status']})" if 'model_http_status' in stage.details else ''))
+    by_basis = {k: sum(1 for a in reviewed if a.review_basis == k) for k in ('model_and_skeptic', 'model_analyst_only', 'rules_only')}
+    coverage = (f' Of {len(reviewed)} reviewed studies: {by_basis["model_and_skeptic"]} had model plus independent Skeptic review, '
+                f'{by_basis["model_analyst_only"]} had Analyst only, {by_basis["rules_only"]} used rules only (no model).') if use_model else ''
     caveat = (' Partial-model limitations: ' + '; '.join(warnings) + '.' if warnings else '')
     finish_run(request.run_id)
     return AgentRunResponse(mode=request.mode,profile=profile,trials=studies,assessments=with_overviews(reviewed,followups),
@@ -139,5 +142,5 @@ async def execute(request: AgentRunRequest, *, model_authorized: bool = False) -
         profile_concerns=profile_concerns,
         notice=(f'Five agent roles executed; {agent_completed} used model inference, '
                 f'{5-agent_completed} used controlled tools. {budget.calls} model requests attempted.'
-                + caveat + ' This is preliminary research navigation, '
+                + coverage + caveat + ' This is preliminary research navigation, '
                 'not clinical eligibility. All patients must be fictional.'))

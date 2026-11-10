@@ -76,9 +76,14 @@ async def model_judgment(profile: PatientProfile, trial: TrialRecord, budget: Ag
     return all_criteria, [reviewed[c.id] for c in all_criteria]
 
 
+def rules_only(profile: PatientProfile, trial: TrialRecord, reason: str) -> TrialAssessment:
+    return review_trial(profile, trial).model_copy(update={'review_basis': 'rules_only', 'rules_only_reason': reason})
+
+
 async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: bool, budget: AgentBudget):
     if not model:
-        return [review_trial(profile, t) for t in trials], {'model_invoked': False, 'trials': len(trials)}
+        return ([rules_only(profile, t, 'Model-assisted mode was not selected') for t in trials],
+                {'model_invoked': False, 'trials': len(trials)})
     results = []
     handled = 0
     unsupported = 0
@@ -91,13 +96,16 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
         if required == 0:
             if len(split_by_rules(profile, trial)[2]) > MAX_MODEL_CRITERIA:
                 unsupported += 1
-            results.append(review_trial(profile, trial))
+                reason = f'Too many criteria for bounded model review (limit {MAX_MODEL_CRITERIA})'
+            else:
+                reason = 'Every recognised criterion was settled by rules or none could be reviewed; no model call was needed'
+            results.append(rules_only(profile, trial, reason))
             continue
         # Reserve equal inference capacity for the independent skeptic BEFORE
         # spending the analyst's budget on a later study. Never exceed the cap.
         if budget.calls + reserved_skeptic + 2 * required > budget.maximum:
             budget_skips += 1
-            results.append(review_trial(profile, trial))
+            results.append(rules_only(profile, trial, 'Model-call budget was used up by earlier studies in this run'))
             continue
         try:
             outcome = await model_judgment(profile, trial, budget)
@@ -107,12 +115,13 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], *, model: 
             failed += 1
             outcome = None
         if outcome is None:
-            results.append(review_trial(profile, trial))
+            results.append(rules_only(profile, trial, 'The model request failed or returned no usable review'))
             continue
         criteria, assessments = outcome
         summary, unresolved = aggregate(criteria, assessments, [])
         results.append(TrialAssessment(nct_id=trial.nct_id, criteria=criteria, assessments=assessments,
-                        skeptic=[], summary=summary, unresolved=unresolved, provenance='live_llm'))
+                        skeptic=[], summary=summary, unresolved=unresolved, provenance='live_llm',
+                        review_basis='model_analyst_only'))
         handled += 1
         reserved_skeptic += required
     return results, {'model_invoked': handled > 0, 'model_reviewed': handled,

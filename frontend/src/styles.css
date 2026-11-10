@@ -179,3 +179,7 @@
 /* Real stage progress while a CPU-hosted Ollama model is busy. */
 .active-progress{display:flex;align-items:center;gap:9px;padding:11px 13px;margin:12px 0 0;border:1px solid #cde4de;border-radius:8px;background:#eff8f4;color:#28596d;font-size:12px;line-height:1.5}
 .active-progress svg{flex-shrink:0}
+
+.review-basis.rules_only{background:#fff4e5;color:#8a4b00;border:1px solid #f0c987}
+.review-basis.model_analyst_only{background:#fff9db;color:#6b5a00;border:1px solid #e8d77a}
+.review-basis.model_and_skeptic{background:#e6f6ef;color:#0b5d3b;border:1px solid #a8dcc3}

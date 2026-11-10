@@ -140,6 +140,9 @@ class TrialAssessment(BaseModel):
     unresolved: list[str] = Field(default_factory=list)
     provenance: Literal['live_llm','synthetic_replay','deterministic_followup']
     overview: MatchOverview | None = None
+    # How this study was actually reviewed; a rules-only study must never look model-reviewed.
+    review_basis: Literal['model_and_skeptic', 'model_analyst_only', 'rules_only'] | None = None
+    rules_only_reason: str | None = None
 
 class SearchRequest(BaseModel):
     profile: PatientProfile

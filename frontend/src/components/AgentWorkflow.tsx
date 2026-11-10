@@ -1,5 +1,6 @@
 import {AlertTriangle,CheckCircle2,Download,Info,ShieldCheck} from 'lucide-react';
 import type {AgentResult,AgentTrace} from '../lib/agentApi';
+import {reviewBasisOf} from '../types';
 
 const LABELS:Record<AgentTrace['agent'],string>={
   profile:'Patient profile',discovery:'Trial discovery',analyst:'Eligibility analyst',
@@ -55,7 +56,7 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
     </div></div>
     <div className="agent-trace">
       <div className="agent-trace-heading"><ShieldCheck size={18}/><strong>Execution summary</strong>
-        <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} matched studies · {(result.trace.reduce((sum,t)=>sum+t.duration_ms,0)/1000).toFixed(1)}s pipeline</span></div>
+        <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} studies found · {result.assessments.length} reviewed ({result.assessments.filter(a=>reviewBasisOf(a)==='model_and_skeptic').length} model + Skeptic · {result.assessments.filter(a=>reviewBasisOf(a)==='rules_only').length} rules only) · {(result.trace.reduce((sum,t)=>sum+t.duration_ms,0)/1000).toFixed(1)}s pipeline</span></div>
       {typeof locationStatus==='string'&&<div className="agent-result-note" role="status">
         <Info size={15}/><span><strong>Location search:</strong> {locationStatus}</span>
       </div>}

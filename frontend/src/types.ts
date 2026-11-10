@@ -30,7 +30,14 @@ export interface Criterion { id: string; kind: 'inclusion'|'exclusion'; text: st
 export interface Assessment { criterion_id: string; status: Status; exclusion_triggered:boolean|null; explanation:string; patient_evidence:string[];question_for_doctor:string|null;verified_evidence:boolean; source?:'rules'|'model'|null }
 export interface Skeptic {criterion_id:string; independent_status:Status; exclusion_triggered:boolean|null; explanation:string; disagreement:boolean}
 export interface MatchOverview {total:number;met:number;not_met:number;unknown:number;clinical_review:number;exclusions_triggered:string[];inclusions_failed:string[];resolved_by_rules:number;resolved_by_model:number;top_missing_questions:string[]}
-export interface TrialAssessment {overview?:MatchOverview|null;nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'|'deterministic_followup'}
+export type ReviewBasis='model_and_skeptic'|'model_analyst_only'|'rules_only';
+export interface TrialAssessment {review_basis?:ReviewBasis|null;rules_only_reason?:string|null;overview?:MatchOverview|null;nct_id:string;criteria:Criterion[]; assessments:Assessment[];skeptic:Skeptic[];summary:Summary;unresolved:string[]; provenance:'live_llm'|'synthetic_replay'|'deterministic_followup'}
+/** How a study was really reviewed; derived from provenance when an older response lacks review_basis. */
+export function reviewBasisOf(a:TrialAssessment):ReviewBasis{
+  if(a.review_basis)return a.review_basis;
+  if(a.provenance==='live_llm')return a.skeptic.length>0?'model_and_skeptic':'model_analyst_only';
+  return 'rules_only';
+}
 export interface Analysis {mode:Mode;profile:PatientProfile;trials:Trial[];assessments:TrialAssessment[];timings_ms:Record<string,number>;disclaimer:string}
 
 export interface FollowupCriterionLink {

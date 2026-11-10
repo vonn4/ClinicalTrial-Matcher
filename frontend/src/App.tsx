@@ -1,7 +1,8 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Activity,ArrowRight,BarChart3,Bookmark,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,ClipboardList,Download,ExternalLink,Filter,FlaskConical,HeartPulse,Info,MapPin,Microscope,RefreshCw,Search,ShieldCheck,SlidersHorizontal,X} from 'lucide-react';
 import {Bar,BarChart,CartesianGrid,Cell,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
-import type {Analysis,CriterionDelta,FollowupPlan,IntakeAnswer,IntakeSubmission,Mode,Page,PatientProfile,ReassessmentResponse,Status,Summary,Trial,TrialAssessment} from './types';
+import type {Analysis,CriterionDelta,FollowupPlan,IntakeAnswer,IntakeSubmission,Mode,Page,PatientProfile,ReassessmentResponse,ReviewBasis,Status,Summary,Trial,TrialAssessment} from './types';
+import {reviewBasisOf} from './types';
 
 import {parseProfile,buildIntakeProfile,getTrialFollowups,reassessTrials,checkLiveRegistry} from './lib/api';
 import GuidedIntake from './components/GuidedIntake';
@@ -37,6 +38,12 @@ function DashboardHeader({connection}:{connection:string}){
 function Metric({icon,label,value,sub,kind}:{icon:React.ReactNode,label:string,value:string|number,sub:string,kind?:string}){
   return <div className="metric"><div className="metric-top"><span className="metric-label">{label}</span><div className={'metric-icon '+(kind||'')}>{icon}</div></div><strong className="metric-number">{value}</strong><span className="metric-sub">{sub}</span></div>;
 }
+const BASIS_TEXT:Record<ReviewBasis,string>={model_and_skeptic:'Model + independent Skeptic',model_analyst_only:'Analyst only · Skeptic incomplete',rules_only:'Rules only · model not used'};
+function ReviewBasisTag({assessment}:{assessment?:TrialAssessment}){
+  if(!assessment)return null;
+  const basis=reviewBasisOf(assessment);
+  return <span className={'pill review-basis '+basis} title={assessment.rules_only_reason||undefined}>{BASIS_TEXT[basis]}</span>;
+}
 function SummaryBadge({summary}:{summary:Summary|undefined}){
   if(!summary)return <span className="summary-badge neutral"><Info size={13}/> Not assessed</span>;
   return <span className={'summary-badge '+slug(summary)}>{summary==='identified_conflict'?<CircleAlert size={13}/>:summary==='potential_match'?<CheckCircle2 size={13}/>:<Info size={13}/>} {STATUS_LABEL[summary]}</span>
@@ -65,7 +72,7 @@ function TrialCard({trial,assessment,selected,saved,onSelect,onSave}:{trial:Tria
     <div className="trial-card-meta"><MapPin size={14}/><span>{trial.locations.find(loc=>trial.location_explanation?.includes(loc))||trial.locations[0]||'Location not listed'}</span></div>
     {trial.location_explanation&&<p className="trial-match-reason"><MapPin size={13}/>{trial.location_explanation}</p>}
     {assessment?.overview&&<p className="trial-match-reason"><Info size={13}/>{assessment.overview.met} met · {assessment.overview.not_met} not met · {assessment.overview.unknown+assessment.overview.clinical_review} open of {assessment.overview.total} criteria</p>}
-    <div className="trial-card-bottom"><SummaryBadge summary={assessment?.summary}/><button className="text-link" onClick={onSelect}>Review <ArrowRight size={14}/></button></div>
+    <div className="trial-card-bottom"><SummaryBadge summary={assessment?.summary}/><ReviewBasisTag assessment={assessment}/><button className="text-link" onClick={onSelect}>Review <ArrowRight size={14}/></button></div>
   </div>;
 }
 function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAssessment}){
@@ -79,6 +86,7 @@ function EligibilityDetail({trial,assessment}:{trial?:Trial;assessment?:TrialAss
     <div className="detail-meta"><span>ClinicalTrials.gov study</span><span>•</span><span>{trial.nct_id}</span><span>•</span><span>{trial.status.replaceAll('_',' ')}</span>{trial.updated&&<><span>•</span><span>Updated {trial.updated}</span></>}</div>
     {trial.location_explanation&&<div className="trial-match-detail"><MapPin size={15}/><div><strong>Location preference</strong><p>{trial.location_explanation}</p></div></div>}
     {trial.match_explanation&&<div className="trial-match-detail"><Info size={15}/><div><strong>Why this study appeared</strong><p>{trial.match_explanation}{trial.broad_registry?' This is a broad registry, not necessarily a disease-specific trial; confirm its separate eligibility criteria.':''}</p></div></div>}
+    {assessment&&reviewBasisOf(assessment)!=='model_and_skeptic'&&<div className="trial-match-detail"><Info size={15}/><div><strong>{BASIS_TEXT[reviewBasisOf(assessment)]}</strong><p>{reviewBasisOf(assessment)==='rules_only'?'No AI model reviewed this study. Its status comes only from deterministic rules on your answers; most requirements remain for clinical review.':'The AI analyst reviewed this study but the independent Skeptic did not finish, so findings are unconfirmed.'}{assessment.rules_only_reason?' Reason: '+assessment.rules_only_reason+'.':''}</p></div></div>}
     <div className="detail-summary"><SummaryBadge summary={assessment?.summary}/><p>{assessment?.summary==='identified_conflict'?'A requirement conflicts with the provided synthetic profile.':assessment?.summary==='potential_match'?'No conflicts detected in this preliminary analysis; screening is still required.':assessment?.summary==='clinical_review'?'A requirement needs expert interpretation or independent screening; not confirmed eligible.':assessment?'Important information remains unresolved. Do not treat this as confirmed eligibility.':'This study has not been assessed. Relevance is not eligibility.'}</p></div>
     {assessment?<>
       {assessment.overview&&<div className="match-overview"><div className="subsection-label">EVIDENCE OVERVIEW <span>not an eligibility score</span></div>
