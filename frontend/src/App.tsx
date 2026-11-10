@@ -46,13 +46,13 @@ function CritBadge({status,kind}:{status:Status;kind:string}){
   return <span className={'crit-badge '+(kind==='exclusion'&&status==='met'?'conflict':slug(status))}>{label}</span>
 }
 function Sidebar({page,setPage,savedCount}:{page:Page;setPage:(p:Page)=>void;savedCount:number}){
-  const items=[{id:'discover',label:'Discover trials',icon:<Search size={18}/>},{id:'saved',label:'Saved & compare',icon:<Bookmark size={18}/>},{id:'research',label:'Research lab',icon:<BarChart3 size={18}/>}];
+  const items=[{id:'discover',label:'Discover trials',icon:<Search size={18}/>},{id:'saved',label:'Saved & compare',icon:<Bookmark size={18}/>}];
   return <aside className="sidebar">
     <div className="brand"><div className="brand-icon"><HeartPulse size={24}/></div><div className="brand-copy"><strong>ClinicalTrial</strong><span>Matcher<span className="brand-dot">.</span></span></div></div>
     <div className="nav-label">WORKSPACE</div>
     <nav>{items.map(it=><button key={it.id} className={'nav-link '+(page===it.id?'active':'')} onClick={()=>setPage(it.id as Page)}>{it.icon}<span>{it.label}</span>{it.id==='saved'&&savedCount>0&&<span className="nav-count">{savedCount}</span>}</button>)}</nav>
     <div className="sidebar-spacer"/>
-    <div className="sidebar-card"><div className="sidebar-card-head"><ShieldCheck size={16}/> EVIDENCE-FIRST AI</div><p>Every assessment should point to original trial criteria. Unknown is never assumed eligible.</p><div className="sidebar-signal"><span className="live-dot"/> Research prototype</div></div>
+    <div className="sidebar-card"><div className="sidebar-card-head"><ShieldCheck size={16}/> SOURCE-LINKED REVIEW</div><p>Every finding links to study criteria. Unknown information stays unresolved.</p><div className="sidebar-signal"><span className="live-dot"/> Research prototype</div></div>
     <div className="sidebar-footer">HACKAROO 2026</div>
   </aside>;
 }
