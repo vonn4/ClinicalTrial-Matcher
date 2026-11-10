@@ -2,6 +2,7 @@
 import math, re
 from collections import Counter
 from .schemas import TrialRecord, PatientProfile
+from .location_relevance import location_priority
 
 def tokenize(text: str) -> list[str]:
     return re.findall(r'[a-z0-9]+', text.lower())
@@ -24,5 +25,6 @@ def rank_trials(profile: PatientProfile, studies: list[TrialRecord]) -> list[Tri
             norm=tf[term]*2.2/(tf[term]+1.2*(.25+.75*len(tokens)/avg))
             score+=idf*norm
         # Recruitment relevance is not used as an eligibility conclusion.
+        score += location_priority(profile, study)
         study.relevance_score=round(score,4)
     return sorted(studies,key=lambda s:(-s.relevance_score,s.nct_id))
