@@ -66,3 +66,28 @@ def test_check_ai_missing_running_backend_has_actionable_instructions(fake_confi
     monkeypatch.setattr(launcher, "request_json", unavailable)
     with pytest.raises(RuntimeError, match="No matching backend was reachable"):
         launcher.verify_model_readiness("http://127.0.0.1:8000")
+
+
+def test_list_ai_models_is_read_only_and_does_not_print_key(fake_configuration,monkeypatch,capsys):
+    import io,json
+    seen=[]
+    def fake_open(request,timeout=0):
+        seen.append(request)
+        return io.BytesIO(json.dumps({'models':[
+            {'name':'models/gemini-3.5-flash-lite',
+             'supportedGenerationMethods':['generateContent','countTokens']},
+            {'name':'models/gemini-3.8-flash',
+             'supportedGenerationMethods':['generateContent']},
+            {'name':'models/gemini-embedding-001',
+             'supportedGenerationMethods':['embedContent']}
+        ]}).encode())
+    monkeypatch.setattr(launcher,'urlopen',fake_open)
+    launcher.list_available_models()
+    out=capsys.readouterr().out
+    assert 'gemini-3.8-flash' in out
+    assert 'gemini-3.5-flash-lite' in out
+    assert 'gemini-embedding-001' not in out
+    assert 'NOT LISTED' in out
+    assert 'A'*35 not in out
+    assert len(seen)==1 and seen[0].get_method()=='GET'
+    assert any(k.lower()=='x-goog-api-key' for k,v in seen[0].header_items())
