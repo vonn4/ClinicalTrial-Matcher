@@ -20,7 +20,7 @@ export default function AgentWorkflow({result}:{result:AgentResult|null}){
     </div></div>
     <div className="agent-trace">
       <div className="agent-trace-heading"><ShieldCheck size={18}/><strong>Execution summary</strong>
-        <span>{result.trace.length} roles · {modelStages} used AI · {result.model_calls} model calls · {result.candidate_count} candidates</span></div>
+        <span>{result.trace.length} stages · {modelStages} AI-assisted · {result.model_calls} model {result.model_calls===1?'attempt':'attempts'} · {result.trials.length} matched studies</span></div>
       {failures.length>0&&<div className="agent-error-banner" role="alert">
         <AlertTriangle size={17}/><span>{failures.length} AI stage(s) had problems. No failed model review is counted as verified; review details below.</span>
       </div>}
