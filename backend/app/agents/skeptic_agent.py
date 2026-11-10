@@ -34,7 +34,11 @@ async def execute(profile: PatientProfile, trials: list[TrialRecord], primary: l
             evidence_ok = all(verifies_original_criterion(trial, c) for c in criteria_for_trial(trial))
             result = current.model_copy(deep=True)
             if current.provenance == 'live_llm':
-                result.summary = 'clinical_review'
+                # Missing independent review must NEVER conceal an already identified
+                # inclusion contradiction or exclusion trigger. Keep the conflict
+                # warning while clearly marking independent review as incomplete.
+                if result.summary != 'identified_conflict':
+                    result.summary = 'clinical_review'
                 result.unresolved.append('Independent AI skeptic review not completed; cannot confirm preliminary match')
             if not evidence_ok:
                 result.summary = 'clinical_review'
