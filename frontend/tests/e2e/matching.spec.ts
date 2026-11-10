@@ -88,7 +88,7 @@ test('quick description automatically runs all five roles once without a Play bu
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,false);
   await page.goto('/');
-  await expect(page.getByText('Gemini not enabled:')).toBeVisible();
+  await expect(page.getByText(/Gemini unavailable:/)).toBeVisible();
   await page.getByRole('button',{name:'Quick description'}).click();
   await page.getByPlaceholder(/Describe a fictional patient/).fill(profile.description);
   await page.getByRole('button',{name:'Search ClinicalTrials.gov'}).click();
@@ -104,7 +104,7 @@ test('model choice and local team token are passed through the first intake sear
   const calls:{depth:string,token:string}[]=[];
   await mockedBackend(page,calls,true);
   await page.goto('/');
-  await expect(page.getByText(/Gemini configured:/)).toBeVisible();
+  await expect(page.getByText(/Gemini settings found/)).toBeVisible();
   await page.getByRole('radio',{name:'Model-assisted five-agent workflow'}).check();
   await page.getByLabel('Local team access token').fill('synthetic-team-token-not-real');
   await page.getByRole('button',{name:'Quick description'}).click();
