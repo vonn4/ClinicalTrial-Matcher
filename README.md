@@ -1,3 +1,21 @@
+## Optional OpenAI model backend (MVP demo)
+
+The OpenAI API is billed **separately** from ChatGPT Plus/Pro. This branch does not use an API key unless you explicitly set `OPENAI_ALLOW_BILLABLE=true`. Neither an existing credit balance nor a project budget guarantees no charges; check billing before opting in.
+
+After revoking any previously shared key, add these entries to your **local ignored** `.env` (never commit or share the key):
+
+```dotenv
+ENABLE_LIVE_AI=true
+AI_PROVIDER=openai
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_API_KEY=<new-private-project-key>
+OPENAI_ALLOW_BILLABLE=true
+```
+
+Keep your existing `LIVE_AI_ACCESS_TOKEN` for the browser. Restart `python run_local.py` so the backend reloads the environment. Select model-assisted workflow and use a fictional patient. To stop billable API requests, set `OPENAI_ALLOW_BILLABLE=false` and restart the backend. `AI_PROVIDER=gemini` restores the previous Gemini adapter. The existing per-run and hourly call caps still apply, but they are **request caps, not monetary hard stops**.
+
+The existing `--check-ai`, `--list-ai-models`, `--probe-ai` and `--smoke-ai-workflow` launcher diagnostics were designed for Gemini and must not be treated as OpenAI acceptance tests. Verify OpenAI via the website's actual Analyst and independent Skeptic trace; the model completion count must be positive for both. CI tests use mock responses only and incur no API charges.
+
 ## MVP 2.4 — Gemini overload recovery and official study-radius filtering
 
 **Isolated review branch:** `fix/mvp-2.4-reliable-ai-radius-search` ([PR #15](https://github.com/vonn4/ClinicalTrial-Matcher/pull/15)), based on the tested MVP 2.3 branch. Neither the last-tested version nor the local private `.env` is modified.

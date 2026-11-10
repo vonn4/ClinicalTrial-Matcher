@@ -26,8 +26,19 @@ class AgentBudget:
 
     async def generate(self, *, model: str, system: str, payload: dict) -> dict:
         # A missing key/disabled provider is NOT counted as a completed or attempted API call.
-        if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes','on'} or not os.getenv('GEMINI_API_KEY','').strip():
-            raise ModelUnavailable('A free-tier Gemini key and explicit ENABLE_LIVE_AI=true are required')
+        provider = os.getenv('AI_PROVIDER', 'gemini').strip().lower()
+        if os.getenv('ENABLE_LIVE_AI','').strip().lower() not in {'true','1','yes','on'}:
+            raise ModelUnavailable('ENABLE_LIVE_AI=true is required')
+        if provider == 'openai':
+            if not os.getenv('OPENAI_API_KEY','').strip():
+                raise ModelUnavailable('OPENAI_API_KEY is required')
+            if os.getenv('OPENAI_ALLOW_BILLABLE','').strip().lower() not in {'true','1','yes','on'}:
+                raise ModelUnavailable('Explicit OPENAI_ALLOW_BILLABLE=true is required; API calls may incur charges')
+        elif provider == 'gemini':
+            if not os.getenv('GEMINI_API_KEY','').strip():
+                raise ModelUnavailable('GEMINI_API_KEY is required')
+        else:
+            raise ModelUnavailable('Unknown AI_PROVIDER')
         if self._unavailable_error is not None:
             raise self._unavailable_error
         # Only HTTP 503 gets one short bounded retry. Every outbound attempt
